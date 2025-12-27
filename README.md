@@ -26,13 +26,14 @@ The project is organized into three main versions, each building upon the previo
   - More accurate evaluation in complex positions
   - Enhanced search depth handling
 
-### CBEMv1.2_MVVLVA
-- **Advanced Features**: Implements MVVLVA (Most Valuable Victim - Least Valuable Attacker) move ordering
-- **Status**: Created but not yet implemented
-- **Planned Optimizations**:
-  - MVVLVA-based move ordering for better capture move prioritization
-  - Enhanced alpha-beta pruning efficiency
-  - Improved search performance through better move ordering
+### CBEMv1.2_SimpleOrdering1
+- **Advanced Features**: Implements simple move ordering using MVVLVA (Most Valuable Victim - Least Valuable Attacker)
+- **Status**: Implemented with basic capture move ordering
+- **Current Features**:
+  - MVVLVA-based capture move ordering for better move prioritization
+  - Array.Sort implementation for efficient move sorting
+  - Enhanced alpha-beta pruning efficiency through better move ordering
+  - Improved search performance by trying promising captures first
 
 ## Technical Architecture
 
@@ -76,17 +77,17 @@ The project is organized into three main versions, each building upon the previo
    # or
    dotnet build CBEMv1.1_QuiescenceSearch/CBEMv1.1_QuiescenceSearch.csproj
    # or
-   dotnet build CBEMv1.2_MVVLVA/CBEMv1.2_MVVLVA.csproj
+   dotnet build CBEMv1.2_SimpleOrdering1/CBEMv1.2_SimpleOrdering1.csproj
    ```
 
 3. **Run in debug mode** (for testing):
    ```bash
-   dotnet run --project CBEMv1.2_MVVLVA
+   dotnet run --project CBEMv1.2_SimpleOrdering1
    ```
 
 4. **Run with UCI GUI**:
    ```bash
-   dotnet run --project CBEMv1.2_MVVLVA --no-debug
+   dotnet run --project CBEMv1.2_SimpleOrdering1 --no-debug
    ```
 
 ### Testing
@@ -103,7 +104,7 @@ The engine includes built-in performance testing (perft) to verify move generati
 - **Negamax**: Recursive search algorithm
 - **Alpha-Beta Pruning**: Search tree optimization
 - **Quiescence Search**: Tactical position analysis
-- **Move Ordering**: Search efficiency improvements (MVVLVA implementation planned)
+- **Move Ordering**: Search efficiency improvements (MVVLVA implemented)
 
 ### Evaluation Components
 - Material balance evaluation
@@ -161,5 +162,5 @@ This project is provided for educational purposes. Please check the license file
 
 ---
 
-**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1 and v1.2. Note that v1.2_MVVLVA has been created but the MVVLVA implementation is not yet complete - it currently contains the same code as v1.1.
+**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1 and v1.2. The v1.2_SimpleOrdering1 version implements basic MVVLVA move ordering for capture moves.
 

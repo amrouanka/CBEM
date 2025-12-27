@@ -12,6 +12,25 @@ public static class Search
     // nodes counter
     private static long nodes;
 
+    // MVV LVA [attacker][victim]
+    private static readonly int[,] mvv_lva = new int[,]
+    {
+        {105, 205, 305, 405, 505, 605,  105, 205, 305, 405, 505, 605},
+        {104, 204, 304, 404, 504, 604,  104, 204, 304, 404, 504, 604},
+        {103, 203, 303, 403, 503, 603,  103, 203, 303, 403, 503, 603},
+        {102, 202, 302, 402, 502, 602,  102, 202, 302, 402, 502, 602},
+        {101, 201, 301, 401, 501, 601,  101, 201, 301, 401, 501, 601},
+        {100, 200, 300, 400, 500, 600,  100, 200, 300, 400, 500, 600},
+
+        {105, 205, 305, 405, 505, 605,  105, 205, 305, 405, 505, 605},
+        {104, 204, 304, 404, 504, 604,  104, 204, 304, 404, 504, 604},
+        {103, 203, 303, 403, 503, 603,  103, 203, 303, 403, 503, 603},
+        {102, 202, 302, 402, 502, 602,  102, 202, 302, 402, 502, 602},
+        {101, 201, 301, 401, 501, 601,  101, 201, 301, 401, 501, 601},
+        {100, 200, 300, 400, 500, 600,  100, 200, 300, 400, 500, 600}
+    };
+
+
     // Main search routine using negamax with alpha-beta pruning
     public static void SearchPosition(int depth)
     {
@@ -37,12 +56,14 @@ public static class Search
         // recursion escape condition
         if (depth == 0)
             // return evaluation
-            return Quiescence(alpha, beta, 0);
+            return Quiescence(alpha, beta);
 
         // increment nodes count
         nodes++;
 
         bool inCheck = PieceAttacks.IsSquareAttacked((side == (int)Side.white) ? BitboardOperations.GetLs1bIndex(bitboards[K]) : BitboardOperations.GetLs1bIndex(bitboards[k]), side ^ 1);
+
+        if (inCheck) depth++;
 
         int legalMoves = 0;
 
@@ -57,6 +78,10 @@ public static class Search
 
         // generate moves
         GenerateMoves(ref moveList);
+
+        // sort moves by MVV-LVA score (descending)
+        Array.Sort(moveList.moves, 0, moveList.count, 
+            Comparer<int>.Create((a, b) => ScoreMove(b).CompareTo(ScoreMove(a))));
 
         // loop over moves within a movelist
         for (int count = 0; count < moveList.count; count++)
@@ -127,7 +152,7 @@ public static class Search
     public static int Quiescence(int alpha, int beta, int depth = 0)
     {
         // depth limit to prevent infinite recursion
-        if (depth > 2)
+        if (depth > 1)
             return Evaluation.Evaluate();
 
         // increment nodes count
@@ -160,6 +185,10 @@ public static class Search
         {
             GenerateCaptureMoves(ref moveList);
         }
+
+        // sort moves by MVV-LVA score (descending)
+        Array.Sort(moveList.moves, 0, moveList.count, 
+            Comparer<int>.Create((a, b) => ScoreMove(b).CompareTo(ScoreMove(a))));
 
         // loop over moves within a movelist
         for (int count = 0; count < moveList.count; count++)
@@ -195,5 +224,54 @@ public static class Search
         }
 
         return alpha;
+    }
+    
+    // score moves
+    private static int ScoreMove(int move)
+    {
+        // score capture move
+        if (GetMoveCapture(move) != 0)
+        {
+            // init target piece
+            int target_piece = (int)Piece.P;
+            
+            // pick up bitboard piece index ranges depending on side
+            int start_piece, end_piece;
+            
+            // pick up side to move
+            if (side == (int)Side.white) 
+            { 
+                start_piece = (int)Piece.p; 
+                end_piece = (int)Piece.k; 
+            }
+            else 
+            { 
+                start_piece = (int)Piece.P; 
+                end_piece = (int)Piece.K; 
+            }
+            
+            // loop over bitboards opposite to the current side to move
+            for (int bb_piece = start_piece; bb_piece <= end_piece; bb_piece++)
+            {
+                // if there's a piece on the target square
+                if (BitboardOperations.GetBit(bitboards[bb_piece], GetMoveTarget(move)))
+                {
+                    // remove it from corresponding bitboard
+                    target_piece = bb_piece;
+                    break;
+                }
+            }
+                    
+            // score move by MVV LVA lookup [source piece][target piece]
+            return mvv_lva[GetMovePiece(move), target_piece];
+        }
+        
+        // score quiet move
+        else
+        {
+        
+        }
+        
+        return 0;
     }
 }
