@@ -30,6 +30,10 @@ public static class Search
         {100, 200, 300, 400, 500, 600,  100, 200, 300, 400, 500, 600}
     };
 
+    private static int[,] killerMoves = new int[2,64];
+
+    private static int[,] historyMoves = new int[12,64];
+
 
     // Main search routine using negamax with alpha-beta pruning
     public static void SearchPosition(int depth)
@@ -79,9 +83,14 @@ public static class Search
         // generate moves
         GenerateMoves(ref moveList);
 
-        // sort moves by MVV-LVA score (descending)
-        Array.Sort(moveList.moves, 0, moveList.count, 
-            Comparer<int>.Create((a, b) => ScoreMove(b).CompareTo(ScoreMove(a))));
+        // score moves once
+        for (int i = 0; i < moveList.count; i++)
+            moveList.scores[i] = ScoreMove(moveList.moves[i]);
+
+        // sort by cached scores (descending)
+        Array.Sort(moveList.scores, moveList.moves, 0, moveList.count);
+        Array.Reverse(moveList.moves, 0, moveList.count);
+        Array.Reverse(moveList.scores, 0, moveList.count);
 
         // loop over moves within a movelist
         for (int count = 0; count < moveList.count; count++)
@@ -113,6 +122,10 @@ public static class Search
             // fail-hard beta cutoff
             if (score >= beta)
             {
+                // update killer moves
+                killerMoves[1, ply] = killerMoves[0, ply];
+                killerMoves[0, ply] = moveList.moves[count];
+
                 // node (move) fails high
                 return beta;
             }
@@ -120,6 +133,8 @@ public static class Search
             // found a better move
             if (score > alpha)
             {
+                historyMoves[GetMovePiece(moveList.moves[count]), GetMoveTarget(moveList.moves[count])] += depth;
+                
                 // PV node (move)
                 alpha = score;
 
@@ -186,9 +201,14 @@ public static class Search
             GenerateCaptureMoves(ref moveList);
         }
 
-        // sort moves by MVV-LVA score (descending)
-        Array.Sort(moveList.moves, 0, moveList.count, 
-            Comparer<int>.Create((a, b) => ScoreMove(b).CompareTo(ScoreMove(a))));
+        // score moves once
+        for (int i = 0; i < moveList.count; i++)
+            moveList.scores[i] = ScoreMove(moveList.moves[i]);
+
+        // sort by cached scores (descending)
+        Array.Sort(moveList.scores, moveList.moves, 0, moveList.count);
+        Array.Reverse(moveList.moves, 0, moveList.count);
+        Array.Reverse(moveList.scores, 0, moveList.count);
 
         // loop over moves within a movelist
         for (int count = 0; count < moveList.count; count++)
@@ -263,13 +283,18 @@ public static class Search
             }
                     
             // score move by MVV LVA lookup [source piece][target piece]
-            return mvv_lva[GetMovePiece(move), target_piece];
+            return mvv_lva[GetMovePiece(move), target_piece] + 10000;
         }
         
         // score quiet move
         else
         {
-        
+            if (killerMoves[0, ply] == move)
+                return 9000;
+            else if (killerMoves[1, ply] == move)
+                return 8000;
+            else
+                return historyMoves[GetMovePiece(move), GetMoveTarget(move)];
         }
         
         return 0;

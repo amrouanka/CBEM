@@ -4,6 +4,12 @@ using static MoveGenerator;
 
 class Program
 {
+    public const string EmptyBoard = "8/8/8/8/8/8/8/8 w - - ";
+    public const string StartPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    public const string TrickyPosition = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+    public const string PinPosition = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
+    public const string Position5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+
     static void Main()
     {
         PieceAttacks.InitAll();
@@ -14,14 +20,14 @@ class Program
         if (debug)
         {
             // Parse FEN and print board
-            Board.ParseFEN(TestHorizonEffect);
-            Board.PrintBoard();
+            Board.ParseFEN(PinPosition);
 
             // Placeholder for evaluation when you implement it
             Console.WriteLine($"score: {Evaluation.Evaluate()}");
 
             Board.PrintBoard();
-            Search.SearchPosition(1);
+
+            Search.SearchPosition(7);
         }
         else
         {
@@ -32,13 +38,6 @@ class Program
 
     static long nodes;
     public static int GetTimeMs() => Environment.TickCount;
-
-    public const string EmptyBoard = "8/8/8/8/8/8/8/8 w - - ";
-    public const string StartPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    public const string TrickyPosition = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
-    public const string PinPosition = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
-    public const string Position5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
-    public const string TestHorizonEffect = "rnb1kbnr/ppp1pppp/8/3q4/2P5/8/PP1P1PPP/RNBQKBNR b KQkq c3 0 3";
 
     static void PerftDriver(int depth)
     {

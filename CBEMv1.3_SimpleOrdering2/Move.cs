@@ -29,11 +29,13 @@ public static class MoveEncoding
 public struct MoveList
 {
     public int[] moves;
+    public int[] scores;
     public int count;
 
     public MoveList()
     {
         moves = new int[256];
+        scores = new int[256];
         count = 0;
     }
 }
