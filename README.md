@@ -8,7 +8,7 @@ CBEM (Chess Bitboard Engine Manager) is an educational chess engine project that
 
 ## Project Structure
 
-The project is organized into three main versions, each building upon the previous one with additional features:
+The project is organized into four main versions, each building upon the previous one with additional features:
 
 ### CBEMv1.0_AlphaPruning
 - **Core Features**: Basic chess engine with alpha-beta pruning
@@ -34,6 +34,15 @@ The project is organized into three main versions, each building upon the previo
   - Array.Sort implementation for efficient move sorting
   - Enhanced alpha-beta pruning efficiency through better move ordering
   - Improved search performance by trying promising captures first
+
+### CBEMv1.3_SimpleOrdering2
+- **Advanced Features**: Enhanced move ordering with killer moves and history heuristic
+- **Improvements**:
+  - Killer move tracking (2 slots per ply) for non-capture beta cutoffs
+  - History table for quiet move ordering based on past effectiveness
+  - Cached scoring optimization to eliminate repeated ScoreMove() calls during sorting
+  - Proper move ordering hierarchy: captures > killer moves > history
+  - Significant search speed improvements through better move prioritization
 
 ## Technical Architecture
 
@@ -78,16 +87,18 @@ The project is organized into three main versions, each building upon the previo
    dotnet build CBEMv1.1_QuiescenceSearch/CBEMv1.1_QuiescenceSearch.csproj
    # or
    dotnet build CBEMv1.2_SimpleOrdering1/CBEMv1.2_SimpleOrdering1.csproj
+   # or
+   dotnet build CBEMv1.3_SimpleOrdering2/CBEMv1.3_SimpleOrdering2.csproj
    ```
 
 3. **Run in debug mode** (for testing):
    ```bash
-   dotnet run --project CBEMv1.2_SimpleOrdering1
+   dotnet run --project CBEMv1.3_SimpleOrdering2
    ```
 
 4. **Run with UCI GUI**:
    ```bash
-   dotnet run --project CBEMv1.2_SimpleOrdering1 --no-debug
+   dotnet run --project CBEMv1.3_SimpleOrdering2 --no-debug
    ```
 
 ### Testing
@@ -104,7 +115,11 @@ The engine includes built-in performance testing (perft) to verify move generati
 - **Negamax**: Recursive search algorithm
 - **Alpha-Beta Pruning**: Search tree optimization
 - **Quiescence Search**: Tactical position analysis
-- **Move Ordering**: Search efficiency improvements (MVVLVA implemented)
+- **Move Ordering**: Search efficiency improvements
+  - MVVLVA for capture moves
+  - Killer moves for non-capture beta cutoffs
+  - History heuristic for quiet move ordering
+  - Cached scoring optimization for faster sorting
 
 ### Evaluation Components
 - Material balance evaluation
@@ -162,5 +177,5 @@ This project is provided for educational purposes. Please check the license file
 
 ---
 
-**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1 and v1.2. The v1.2_SimpleOrdering1 version implements basic MVVLVA move ordering for capture moves.
+**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, and v1.3. The v1.3_SimpleOrdering2 version implements advanced move ordering with killer moves, history heuristic, and cached scoring for optimal search performance.
 
