@@ -20,14 +20,12 @@ class Program
         if (debug)
         {
             // Parse FEN and print board
-            Board.ParseFEN(PinPosition);
+            Board.ParseFEN(TrickyPosition);
 
             // Placeholder for evaluation when you implement it
             Console.WriteLine($"score: {Evaluation.Evaluate()}");
 
-            Board.PrintBoard();
-
-            Search.SearchPosition(3);
+            Search.SearchPosition(6);
         }
         else
         {
@@ -47,7 +45,7 @@ class Program
             return;
         }
 
-        MoveList moveList = new MoveList();
+        MoveList moveList = new();
         GenerateMoves(ref moveList);
 
         for (int i = 0; i < moveList.count; i++)
@@ -69,7 +67,7 @@ class Program
     {
         Console.WriteLine("\n     Performance test\n");
 
-        MoveList moveList = new MoveList();
+        MoveList moveList = new();
         GenerateMoves(ref moveList);
 
         int start = GetTimeMs();

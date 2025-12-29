@@ -44,6 +44,15 @@ The project is organized into four main versions, each building upon the previou
   - Proper move ordering hierarchy: captures > killer moves > history
   - Significant search speed improvements through better move prioritization
 
+### CBEMv1.4_IteretiveDeep
+- **Advanced Features**: Principal Variation (PV) table and iterative deepening framework
+- **Improvements**:
+  - PV table for storing and displaying full search variations
+  - Enhanced UCI output with full Principal Variation line
+  - Foundation for iterative deepening search algorithm
+  - Improved move ordering through PV tracking
+  - Better analysis capabilities with complete move sequences
+
 ## Technical Architecture
 
 ### Core Components
@@ -89,16 +98,18 @@ The project is organized into four main versions, each building upon the previou
    dotnet build CBEMv1.2_SimpleOrdering1/CBEMv1.2_SimpleOrdering1.csproj
    # or
    dotnet build CBEMv1.3_SimpleOrdering2/CBEMv1.3_SimpleOrdering2.csproj
+   # or
+   dotnet build CBEMv1.4_IteretiveDeep/CBEMv1.4_IteretiveDeep.csproj
    ```
 
 3. **Run in debug mode** (for testing):
    ```bash
-   dotnet run --project CBEMv1.3_SimpleOrdering2
+   dotnet run --project CBEMv1.4_IteretiveDeep
    ```
 
 4. **Run with UCI GUI**:
    ```bash
-   dotnet run --project CBEMv1.3_SimpleOrdering2 --no-debug
+   dotnet run --project CBEMv1.4_IteretiveDeep --no-debug
    ```
 
 ### Testing
@@ -120,6 +131,8 @@ The engine includes built-in performance testing (perft) to verify move generati
   - Killer moves for non-capture beta cutoffs
   - History heuristic for quiet move ordering
   - Cached scoring optimization for faster sorting
+  - Principal Variation (PV) table for move sequence tracking
+  - Enhanced UCI output with full PV display
 
 ### Evaluation Components
 - Material balance evaluation
@@ -177,5 +190,5 @@ This project is provided for educational purposes. Please check the license file
 
 ---
 
-**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, and v1.3. The v1.3_SimpleOrdering2 version implements advanced move ordering with killer moves, history heuristic, and cached scoring for optimal search performance.
+**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, v1.3, and v1.4. The v1.4_IteretiveDeep version implements Principal Variation tracking and enhanced UCI output with full move sequences, providing the foundation for iterative deepening search algorithms.
 
