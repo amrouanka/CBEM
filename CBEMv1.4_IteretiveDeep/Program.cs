@@ -15,7 +15,7 @@ class Program
         PieceAttacks.InitAll();
 
         // Debug mode variable
-        bool debug = true;
+        bool debug = false;
 
         if (debug)
         {

@@ -7,55 +7,83 @@ public static class Evaluation
     [
         100,
         320,
-        340,
+        330,
         500,
-        1000,
+        900,
         20000,
         -100,
         -320,
-        -340,
+        -330,
         -500,
-        -1000,
+        -900,
         -20000,
     ];
 
-    // Center bonus table
-    private static readonly int[] centerBonus =
+    private static readonly int BishopPairBonus = 50;
+
+    // Knight bonus table
+    private static readonly int[] knightScore =
     [
-        0,  0,  0,  0,  0,  0,  0, 0,
-        0, 10, 10, 10, 10, 10, 10, 0,
-        0, 10, 20, 20, 20, 20, 10, 0,
-        0, 10, 20, 30, 30, 20, 10, 0,
-        0, 10, 20, 30, 30, 20, 10, 0,
-        0, 10, 20, 20, 20, 20, 10, 0,
-        0, 10, 10, 10, 10, 10, 10, 0,
-        0,  0,  0,  0,  0,  0,  0, 0
+        -50,-40,-30,-30,-30,-30,-40,-50,
+        -40,-20,  0,  0,  0,  0,-20,-40,
+        -30,  0, 10, 15, 15, 10,  0,-30,
+        -30,  5, 15, 20, 20, 15,  5,-30,
+        -30,  0, 15, 20, 20, 15,  0,-30,
+        -30,  5, 10, 15, 15, 10,  5,-30,
+        -40,-20,  0,  5,  5,  0,-20,-40,
+        -50,-40,-30,-30,-30,-30,-40,-50,
     ];
 
     // Pawn positional score
     private static readonly int[] pawnScore =
     [
          0,   0,   0,   0,   0,   0,   0,   0,
-        40,  40,  40,  40,  40,  40,  40,  40,
-        20,  20,  20,  30,  30,  30,  20,  20,
-        10,  10,  10,  20,  20,  10,  10,  10,
-         5,   5,  10,  20,  20,   5,   5,   5,
-         0,   0,   0,   5,   5,   0,   0,   0,
-         0,   0,   0, -10, -10,   0,   0,   0,
+        50,  50,  50,  50,  50,  50,  50,  50,
+        10,  10,  20,  30,  30,  20,  10,  10,
+         5,   5,  10,  25,  25,  10,   5,   5,
+         0,   0,   0,  20,  20,   0,   0,   0,
+         5,  -5, -10,   0,   0, -10,  -5,   5,
+         5,  10,  10, -20, -20,  10,  10,   5,
          0,   0,   0,   0,   0,   0,   0,   0
+    ];
+
+    // Bishop positional score
+    private static readonly int[] bishopScore =
+    [
+        -20,-10,-10,-10,-10,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5, 10, 10,  5,  0,-10,
+        -10,  5,  5, 10, 10,  5,  5,-10,
+        -10,  0, 10, 10, 10, 10,  0,-10,
+        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -20,-10,-10,-10,-10,-10,-10,-20,
     ];
 
     // Rook positional score
     private static readonly int[] rookScore =
     [
-        25,  25,  25,  25,  25,  25,  25,  25,
-        30,  30,  30,  30,  30,  30,  30,  30,
-         0,   0,  10,  10,  10,  10,   0,   0,
-         0,   0,  10,  10,  10,  10,   0,   0,
-         0,   0,  10,  10,  10,  10,   0,   0,
-         0,   0,  10,  10,  10,  10,   0,   0,
-         0,   0,  10,  10,  10,  10,   0,   0,
-         0,   0,   0,  10,  10,   0,   0,   0
+         0,  0,  0,  0,  0,  0,  0,  0,
+         5, 10, 10, 10, 10, 10, 10,  5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+         0,  0,  0,  5,  5,  0,  0,  0
+    ];
+
+    // Queen positional score
+    private static readonly int[] queenScore =
+    [
+        -20,-10,-10, -5, -5,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+         -5,  0,  5,  5,  5,  5,  0, -5,
+          0,  0,  5,  5,  5,  5,  0, -5,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+        -10,  0,  5,  0,  0,  0,  0,-10,
+        -20,-10,-10, -5, -5,-10,-10,-20
     ];
 
     // King positional score
@@ -67,8 +95,8 @@ public static class Evaluation
          0,   0,   0,   0,   0,   0,   0,   0,
          0,   0,   0,   0,   0,   0,   0,   0,
          0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,  10,   0, -15,   0,  10,   0
+         0,   0,   0, -10, -10, -10,   5,   5,
+         0,   0,  10, -10,  -5, -10,  10,   5
     ];
 
     // Mirror score table for black pieces (maps black squares to white perspective)
@@ -106,22 +134,32 @@ public static class Evaluation
                 {
                     // evaluate white pieces
                     case (int)Piece.P: score += pawnScore[square]; break;
-                    case (int)Piece.N: score += centerBonus[square]; break;
-                    case (int)Piece.B: score += centerBonus[square]; break;
+                    case (int)Piece.N: score += knightScore[square]; break;
+                    case (int)Piece.B: score += bishopScore[square]; break;
                     case (int)Piece.R: score += rookScore[square]; break;
+                    case (int)Piece.Q: score += queenScore[square]; break;
                     case (int)Piece.K: score += kingScore[square]; break;
 
                     // evaluate black pieces
                     case (int)Piece.p: score -= pawnScore[mirrorScore[square]]; break;
-                    case (int)Piece.n: score -= centerBonus[square]; break;
-                    case (int)Piece.b: score -= centerBonus[square]; break;
+                    case (int)Piece.n: score -= knightScore[square]; break;
+                    case (int)Piece.b: score -= bishopScore[square]; break;
                     case (int)Piece.r: score -= rookScore[mirrorScore[square]]; break;
+                    case (int)Piece.q: score -= queenScore[square]; break;
                     case (int)Piece.k: score -= kingScore[mirrorScore[square]]; break;
                 }
 
                 BitboardOperations.PopBit(ref bitboard, square);
             }
+
         }
+
+        // Bishop pair bonus
+        int whiteBishops = BitboardOperations.CountBits(bitboards[(int)Piece.B]);
+        int blackBishops = BitboardOperations.CountBits(bitboards[(int)Piece.b]);
+
+        if (whiteBishops >= 2) score += BishopPairBonus;
+        if (blackBishops >= 2) score -= BishopPairBonus;
 
         return (side == (int)Side.white) ? score : -score;
     }

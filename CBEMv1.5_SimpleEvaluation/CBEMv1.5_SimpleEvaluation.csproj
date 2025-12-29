@@ -3,7 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>CBEMv1._5_LMR</RootNamespace>
+    <RootNamespace>CBEMv1._5_SimpleEvaluation</RootNamespace>
+    <AssemblyName>CBEMv1.5_SimpleEvaluation</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
