@@ -163,10 +163,14 @@ public static class Evaluation
 
     static Evaluation()
     {
+        
+     /* In C#, a static constructor is guaranteed to be executed by the .NET runtime before any static members of the class are used  
+        for the first time. So, the moment the search algorithm calls Evaluation.Evaluate(), the runtime ensures that
+        InitializeTables() has already been run exactly once. */
         InitializeTables();
     }
 
-    public static void InitializeTables()
+    private static void InitializeTables()
     {
         for (int pieceType = 0; pieceType <= 5; pieceType++)
         {
@@ -200,9 +204,9 @@ public static class Evaluation
         int gamePhase = 0;
 
         // Evaluate white pieces
-        for (int pieceType = Board.P; pieceType <= Board.K; pieceType++)
+        for (int pieceType = P; pieceType <= K; pieceType++)
         {
-            ulong bitboard = Board.bitboards[pieceType];
+            ulong bitboard = bitboards[pieceType];
 
             while (bitboard != 0)
             {
@@ -217,9 +221,9 @@ public static class Evaluation
         }
 
         // Evaluate black pieces
-        for (int pieceType = Board.p; pieceType <= Board.k; pieceType++)
+        for (int pieceType = p; pieceType <= k; pieceType++)
         {
-            ulong bitboard = Board.bitboards[pieceType];
+            ulong bitboard = bitboards[pieceType];
 
             while (bitboard != 0)
             {
@@ -240,6 +244,6 @@ public static class Evaluation
         int score = (middlegameScore * middlegamePhase + endgameScore * endgamePhase) / 24;
 
         // Return score from perspective of side to move
-        return (Board.side == (int)Side.white) ? score : -score;
+        return (side == (int)Side.white) ? score : -score;
     }
 }

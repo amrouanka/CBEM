@@ -12,8 +12,7 @@ class Program
 
     static void Main()
     {
-        PieceAttacks.InitAll();        // Initialize piece attacks    1st
-        Evaluation.InitializeTables(); // Initialize evaluation tables 2nd
+        PieceAttacks.InitAll();        // Initialize piece attacks
 
         // Debug mode variable
         bool debug = true;
@@ -22,11 +21,16 @@ class Program
         {
             // Parse FEN and print board
             Board.ParseFEN(TrickyPosition);
-            Search.SearchPosition(6);
+            Search.SearchPosition(6); // 652646
+
             Board.ParseFEN(Position5);
-            Search.SearchPosition(6);
+            Search.SearchPosition(6); // 350316
+
             Board.ParseFEN(PinPosition);
-            Search.SearchPosition(8);
+            Search.SearchPosition(9); // 717910
+
+            Board.ParseFEN(StartPosition);
+            Search.SearchPosition(8); // 3927590
         }
         else
         {
@@ -34,16 +38,15 @@ class Program
             Uci.UciLoop();
         }
     }
-
-    static long nodes;
+    
     public static int GetTimeMs() => Environment.TickCount;
 
-    static void PerftDriver(int depth)
+    static long PerftDriver(int depth)
     {
+        long nodes = 0;
         if (depth == 0)
         {
-            nodes++;
-            return;
+            return 1;
         }
 
         MoveList moveList = new();
@@ -58,10 +61,11 @@ class Program
                 continue;
             }
 
-            PerftDriver(depth - 1);
+            nodes += PerftDriver(depth - 1);
 
             Board.TakeBack(state);
         }
+        return nodes;
     }
 
     static void PerftTest(int depth)
@@ -71,6 +75,7 @@ class Program
         MoveList moveList = new();
         GenerateMoves(ref moveList);
 
+        long totalNodes = 0;
         int start = GetTimeMs();
 
         for (int i = 0; i < moveList.count; i++)
@@ -79,20 +84,17 @@ class Program
 
             if (MakeMove(moveList.moves[i], (int)allMoves) == 0)
                 continue;
-
-            long cumulative = nodes;
-
-            PerftDriver(depth - 1);
-
-            long oldNodes = nodes - cumulative;
+            
+            long nodesForMove = PerftDriver(depth - 1);
+            totalNodes += nodesForMove;
 
             Board.TakeBack(state);
 
-            Console.WriteLine($"     move: {MoveEncoding.GetMove(moveList.moves[i])}  nodes: {oldNodes}");
+            Console.WriteLine($"     move: {MoveEncoding.GetMove(moveList.moves[i])}  nodes: {nodesForMove}");
         }
 
         Console.WriteLine($"\n    Depth: {depth}");
-        Console.WriteLine($"    Nodes: {nodes}");
+        Console.WriteLine($"    Nodes: {totalNodes}");
         Console.WriteLine($"     Time: {GetTimeMs() - start}ms\n");
     }
 }

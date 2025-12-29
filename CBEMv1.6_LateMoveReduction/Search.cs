@@ -15,19 +15,12 @@ public static class Search
     // MVV LVA [attacker][victim]
     private static readonly int[,] mvv_lva = new int[,]
     {
-            {105, 205, 305, 405, 505, 605,  105, 205, 305, 405, 505, 605},
-            {104, 204, 304, 404, 504, 604,  104, 204, 304, 404, 504, 604},
-            {103, 203, 303, 403, 503, 603,  103, 203, 303, 403, 503, 603},
-            {102, 202, 302, 402, 502, 602,  102, 202, 302, 402, 502, 602},
-            {101, 201, 301, 401, 501, 601,  101, 201, 301, 401, 501, 601},
-            {100, 200, 300, 400, 500, 600,  100, 200, 300, 400, 500, 600},
-
-            {105, 205, 305, 405, 505, 605,  105, 205, 305, 405, 505, 605},
-            {104, 204, 304, 404, 504, 604,  104, 204, 304, 404, 504, 604},
-            {103, 203, 303, 403, 503, 603,  103, 203, 303, 403, 503, 603},
-            {102, 202, 302, 402, 502, 602,  102, 202, 302, 402, 502, 602},
-            {101, 201, 301, 401, 501, 601,  101, 201, 301, 401, 501, 601},
-            {100, 200, 300, 400, 500, 600,  100, 200, 300, 400, 500, 600}
+            {105, 205, 305, 405, 505, 605},
+            {104, 204, 304, 404, 504, 604},
+            {103, 203, 303, 403, 503, 603},
+            {102, 202, 302, 402, 502, 602},
+            {101, 201, 301, 401, 501, 601},
+            {100, 200, 300, 400, 500, 600}
     };
 
     static readonly int[,] killerMoves = new int[2, maxPly];
@@ -113,15 +106,8 @@ public static class Search
 
         if (followpv) EnablepvScoring(moveList);
 
-        // score moves once
-        for (int i = 0; i < moveList.count; i++)
-            moveList.scores[i] = ScoreMove(moveList.moves[i]);
-
-        // sort by cached scores (descending)
-        Array.Sort(moveList.scores, moveList.moves, 0, moveList.count);
-        Array.Reverse(moveList.moves, 0, moveList.count);
-        Array.Reverse(moveList.scores, 0, moveList.count);
-
+        SortMoves(moveList);
+        
         // loop over moves within a movelist
         for (int count = 0; count < moveList.count; count++)
         {
@@ -159,7 +145,7 @@ public static class Search
             ply--;
 
             // take move back
-            Board.TakeBack(state);
+            TakeBack(state);
 
             // fail-hard beta cutoff
             if (score >= beta)
@@ -239,14 +225,7 @@ public static class Search
             GenerateCaptureMoves(ref moveList);
         }
 
-        // score moves once
-        for (int i = 0; i < moveList.count; i++)
-            moveList.scores[i] = ScoreMove(moveList.moves[i]);
-
-        // sort by cached scores (descending)
-        Array.Sort(moveList.scores, moveList.moves, 0, moveList.count);
-        Array.Reverse(moveList.moves, 0, moveList.count);
-        Array.Reverse(moveList.scores, 0, moveList.count);
+        SortMoves(moveList);
 
         // loop over moves within a movelist
         for (int count = 0; count < moveList.count; count++)
@@ -270,7 +249,7 @@ public static class Search
             ply--;
 
             // take move back
-            Board.TakeBack(state);
+            TakeBack(state);
 
             // fail-hard beta cutoff
             if (score >= beta)
@@ -284,6 +263,19 @@ public static class Search
         return alpha;
     }
 
+
+    private static void SortMoves(MoveList moveList)
+    {
+        // score moves once
+        for (int i = 0; i < moveList.count; i++)
+            moveList.scores[i] = ScoreMove(moveList.moves[i]);
+
+        // sort by cached scores (descending)
+        Array.Sort(moveList.scores, moveList.moves, 0, moveList.count);
+        Array.Reverse(moveList.moves, 0, moveList.count);
+        Array.Reverse(moveList.scores, 0, moveList.count);
+    }
+    
     // score moves
     private static int ScoreMove(int move)
     {
@@ -330,7 +322,7 @@ public static class Search
             }
 
             // score move by MVV LVA lookup [source piece][target piece]
-            return mvv_lva[GetMovePiece(move), target_piece] + 10000;
+            return mvv_lva[GetMovePiece(move) % 6, target_piece % 6] + 10000;
         }
 
         // score quiet move

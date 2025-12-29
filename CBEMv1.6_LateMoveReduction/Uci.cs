@@ -77,7 +77,7 @@ public static class Uci
         // Handle "startpos"
         if (idx < parts.Length && parts[idx] == "startpos")
         {
-            Board.ParseFEN(Program.StartPosition);
+            ParseFEN(Program.StartPosition);
             idx++;
         }
         // Handle "fen ..."
@@ -96,24 +96,24 @@ public static class Uci
                 if (fenTokens.Count > 0)
                 {
                     var fen = string.Join(" ", fenTokens);
-                    Board.ParseFEN(fen);
+                    ParseFEN(fen);
                 }
                 else
                 {
                     // FEN missing; fall back to start position
-                    Board.ParseFEN(Program.StartPosition);
+                    ParseFEN(Program.StartPosition);
                 }
             }
             else
             {
                 // FEN missing; fall back to start position
-                Board.ParseFEN(Program.StartPosition);
+                ParseFEN(Program.StartPosition);
             }
         }
         else
         {
             // Unknown or missing position specifier; default to start position
-            Board.ParseFEN(Program.StartPosition);
+            ParseFEN(Program.StartPosition);
         }
 
         // Parse "moves" section if present
