@@ -103,8 +103,6 @@ public static class Search
 
         bool inCheck = PieceAttacks.IsSquareAttacked((side == (int)Side.white) ? BitboardOperations.GetLs1bIndex(bitboards[K]) : BitboardOperations.GetLs1bIndex(bitboards[k]), side ^ 1);
 
-        if (inCheck) depth++;
-
         int legalMoves = 0;
 
         // create move list instance
@@ -210,10 +208,6 @@ public static class Search
 
     public static int Quiescence(int alpha, int beta, int depth = 0)
     {
-        // depth limit to prevent infinite recursion
-        if (depth > 1)
-            return Evaluation.Evaluate();
-
         // increment nodes count
         nodes++;
 
@@ -238,7 +232,7 @@ public static class Search
         // generate moves - all moves if in check, only captures otherwise
         if (inCheck)
         {
-            GenerateMoves(ref moveList);
+            return AlphaBeta(alpha, beta, 1);
         }
         else
         {
@@ -270,7 +264,7 @@ public static class Search
             ply++;
 
             // score current move
-            int score = -Quiescence(-beta, -alpha, depth + 1);
+            int score = -Quiescence(-beta, -alpha);
 
             // decrement ply
             ply--;
