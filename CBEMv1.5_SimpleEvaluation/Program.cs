@@ -12,7 +12,8 @@ class Program
 
     static void Main()
     {
-        PieceAttacks.InitAll();
+        PieceAttacks.InitAll();        // Initialize piece attacks    1st
+        Evaluation.InitializeTables(); // Initialize evaluation tables 2nd
 
         // Debug mode variable
         bool debug = false;

@@ -3,164 +3,243 @@ using static Square;
 
 public static class Evaluation
 {
-    public static readonly int[] materialScore =
-    [
-        100,
-        320,
-        330,
-        500,
-        900,
-        20000,
-        -100,
-        -320,
-        -330,
-        -500,
-        -900,
-        -20000,
+    // Material values for middlegame and endgame
+    private static readonly int[] middlegamePieceValues = [82, 337, 365, 477, 1025, 0];
+    private static readonly int[] endgamePieceValues = [94, 281, 297, 512, 936, 0];
+
+    private static readonly int[] middlegamePawnTable = [
+        0,   0,   0,   0,   0,   0,  0,   0,
+            98, 134,  61,  95,  68, 126, 34, -11,
+            -6,   7,  26,  31,  65,  56, 25, -20,
+            -14,  13,   6,  21,  23,  12, 17, -23,
+            -27,  -2,  -5,  12,  17,   6, 10, -25,
+            -26,  -4,  -4, -10,   3,   3, 33, -12,
+            -35,  -1, -20, -23, -15,  24, 38, -22,
+            0,   0,   0,   0,   0,   0,  0,   0,
+        ];
+
+    private static readonly int[] endgamePawnTable = [
+        0,   0,   0,   0,   0,   0,   0,   0,
+            178, 173, 158, 134, 147, 132, 165, 187,
+            94, 100,  85,  67,  56,  53,  82,  84,
+            32,  24,  13,   5,  -2,   4,  17,  17,
+            13,   9,  -3,  -7,  -7,  -8,   3,  -1,
+            4,   7,  -6,   1,   0,  -5,  -1,  -8,
+            13,   8,   8,  10,  13,   0,   2,  -7,
+            0,   0,   0,   0,   0,   0,   0,   0,
+        ];
+
+    private static readonly int[] middlegameKnightTable = [
+        -167, -89, -34, -49,  61, -97, -15, -107,
+            -73, -41,  72,  36,  23,  62,   7,  -17,
+            -47,  60,  37,  65,  84, 129,  73,   44,
+            -9,  17,  19,  53,  37,  69,  18,   22,
+            -13,   4,  16,  13,  28,  19,  21,   -8,
+            -23,  -9,  12,  10,  19,  17,  25,  -16,
+            -29, -53, -12,  -3,  -1,  18, -14,  -19,
+            -105, -21, -58, -33, -17, -28, -19,  -23,
+        ];
+
+    private static readonly int[] endgameKnightTable = [
+        -58, -38, -13, -28, -31, -27, -63, -99,
+            -25,  -8, -25,  -2,  -9, -25, -24, -52,
+            -24, -20,  10,   9,  -1,  -9, -19, -41,
+            -17,   3,  22,  22,  22,  11,   8, -18,
+            -18,  -6,  16,  25,  16,  17,   4, -18,
+            -23,  -3,  -1,  15,  10,  -3, -20, -22,
+            -42, -20, -10,  -5,  -2, -20, -23, -44,
+            -29, -51, -23, -15, -22, -18, -50, -64,
+        ];
+
+    private static readonly int[] middlegameBishopTable = [
+        -29,   4, -82, -37, -25, -42,   7,  -8,
+            -26,  16, -18, -13,  30,  59,  18, -47,
+            -16,  37,  43,  40,  35,  50,  37,  -2,
+            -4,   5,  19,  50,  37,  37,   7,  -2,
+            -6,  13,  13,  26,  34,  12,  10,   4,
+            0,  15,  15,  15,  14,  27,  18,  10,
+            4,  15,  16,   0,   7,  21,  33,   1,
+            -33,  -3, -14, -21, -13, -12, -39, -21,
+        ];
+
+    private static readonly int[] endgameBishopTable = [
+        -14, -21, -11,  -8, -7,  -9, -17, -24,
+            -8,  -4,   7, -12, -3, -13,  -4, -14,
+            2,  -8,   0,  -1, -2,   6,   0,   4,
+            -3,   9,  12,   9, 14,  10,   3,   2,
+            -6,   3,  13,  19,  7,  10,  -3,  -9,
+            -12,  -3,   8,  10, 13,   3,  -7, -15,
+            -14, -18,  -7,  -1,  4,  -9, -15, -27,
+            -23,  -9, -23,  -5, -9, -16,  -5, -17,
+        ];
+
+    private static readonly int[] middlegameRookTable = [
+        32,  42,  32,  51, 63,  9,  31,  43,
+            27,  32,  58,  62, 80, 67,  26,  44,
+            -5,  19,  26,  36, 17, 45,  61,  16,
+            -24, -11,   7,  26, 24, 35,  -8, -20,
+            -36, -26, -12,  -1,  9, -7,   6, -23,
+            -45, -25, -16, -17,  3,  0,  -5, -33,
+            -44, -16, -20,  -9, -1, 11,  -6, -71,
+            -19, -13,   1,  17, 16,  7, -37, -26,
+        ];
+
+    private static readonly int[] endgameRookTable = [
+        13, 10, 18, 15, 12,  12,   8,   5,
+            11, 13, 13, 11, -3,   3,   8,   3,
+            7,  7,  7,  5,  4,  -3,  -5,  -3,
+            4,  3, 13,  1,  2,   1,  -1,   2,
+            3,  5,  8,  4, -5,  -6,  -8, -11,
+            -4,  0, -5, -1, -7, -12,  -8, -16,
+            -6, -6,  0,  2, -9,  -9, -11,  -3,
+            -9,  2,  3, -1, -5, -13,   4, -20,
+        ];
+
+    private static readonly int[] middlegameQueenTable = [
+        -28,   0,  29,  12,  59,  44,  43,  45,
+            -24, -39,  -5,   1, -16,  57,  28,  54,
+            -13, -17,   7,   8,  29,  56,  47,  57,
+            -27, -27, -16, -16,  -1,  17,  -2,   1,
+            -9, -26,  -9, -10,  -2,  -4,   3,  -3,
+            -14,   2, -11,  -2,  -5,   2,  14,   5,
+            -35,  -8,  11,   2,   8,  15,  -3,   1,
+            -1, -18,  -9,  10, -15, -25, -31, -50,
+        ];
+
+    private static readonly int[] endgameQueenTable = [
+        -9,  22,  22,  27,  27,  19,  10,  20,
+            -17,  20,  32,  41,  58,  25,  30,   0,
+            -20,   6,   9,  49,  47,  35,  19,   9,
+            3,  22,  24,  45,  57,  40,  57,  36,
+            -18,  28,  19,  47,  31,  34,  39,  23,
+            -16, -27,  15,   6,   9,  17,  10,   5,
+            -22, -23, -30, -16, -16, -23, -36, -32,
+            -33, -28, -22, -43,  -5, -32, -20, -41,
+        ];
+
+    private static readonly int[] middlegameKingTable = [
+        -65,  23,  16, -15, -56, -34,   2,  13,
+            29,  -1, -20,  -7,  -8,  -4, -38, -29,
+            -9,  24,   2, -16, -20,   6,  22, -22,
+            -17, -20, -12, -27, -30, -25, -14, -36,
+            -49,  -1, -27, -39, -46, -44, -33, -51,
+            -14, -14, -22, -46, -44, -30, -15, -27,
+            1,   7,  -8, -64, -43, -16,   9,   8,
+            -15,  36,  12, -54,   8, -28,  24,  14,
+        ];
+
+    private static readonly int[] endgameKingTable = [
+        -74, -35, -18, -18, -11,  15,   4, -17,
+            -12,  17,  14,  17,  17,  38,  23,  11,
+            10,  17,  23,  15,  20,  45,  44,  13,
+            -8,  22,  24,  27,  26,  33,  26,   3,
+            -18,  -4,  21,  24,  27,  23,   9, -11,
+            -19,  -3,  11,  21,  23,  16,   7,  -9,
+            -27, -11,   4,  13,  14,   4,  -5, -17,
+            -53, -34, -21, -11, -28, -14, -24, -43
     ];
 
-    private static readonly int BishopPairBonus = 50;
-
-    // Knight bonus table
-    private static readonly int[] knightScore =
-    [
-        -50,-40,-30,-30,-30,-30,-40,-50,
-        -40,-20,  0,  0,  0,  0,-20,-40,
-        -30,  0, 10, 15, 15, 10,  0,-30,
-        -30,  5, 15, 20, 20, 15,  5,-30,
-        -30,  0, 15, 20, 20, 15,  0,-30,
-        -30,  5, 10, 15, 15, 10,  5,-30,
-        -40,-20,  0,  5,  5,  0,-20,-40,
-        -50,-40,-30,-30,-30,-30,-40,-50,
+    private static readonly int[][] middlegamePestoTables = [
+        middlegamePawnTable,
+            middlegameKnightTable,
+            middlegameBishopTable,
+            middlegameRookTable,
+            middlegameQueenTable,
+            middlegameKingTable
     ];
 
-    // Pawn positional score
-    private static readonly int[] pawnScore =
-    [
-         0,   0,   0,   0,   0,   0,   0,   0,
-        50,  50,  50,  50,  50,  50,  50,  50,
-        10,  10,  20,  30,  30,  20,  10,  10,
-         5,   5,  10,  25,  25,  10,   5,   5,
-         0,   0,   0,  20,  20,   0,   0,   0,
-         5,  -5, -10,   0,   0, -10,  -5,   5,
-         5,  10,  10, -20, -20,  10,  10,   5,
-         0,   0,   0,   0,   0,   0,   0,   0
+    private static readonly int[][] endgamePestoTables = [
+        endgamePawnTable,
+            endgameKnightTable,
+            endgameBishopTable,
+            endgameRookTable,
+            endgameQueenTable,
+            endgameKingTable
     ];
 
-    // Bishop positional score
-    private static readonly int[] bishopScore =
-    [
-        -20,-10,-10,-10,-10,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5, 10, 10,  5,  0,-10,
-        -10,  5,  5, 10, 10,  5,  5,-10,
-        -10,  0, 10, 10, 10, 10,  0,-10,
-        -10, 10, 10, 10, 10, 10, 10,-10,
-        -10,  5,  0,  0,  0,  0,  5,-10,
-        -20,-10,-10,-10,-10,-10,-10,-20,
-    ];
+    private static readonly int[] gamePhaseIncrement = [0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
+    private static readonly int[,] middlegameEvaluationTable = new int[12, 64];
+    private static readonly int[,] endgameEvaluationTable = new int[12, 64];
 
-    // Rook positional score
-    private static readonly int[] rookScore =
-    [
-         0,  0,  0,  0,  0,  0,  0,  0,
-         5, 10, 10, 10, 10, 10, 10,  5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-         0,  0,  0,  5,  5,  0,  0,  0
-    ];
+    static Evaluation()
+    {
+        InitializeTables();
+    }
 
-    // Queen positional score
-    private static readonly int[] queenScore =
-    [
-        -20,-10,-10, -5, -5,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5,  5,  5,  5,  0,-10,
-         -5,  0,  5,  5,  5,  5,  0, -5,
-          0,  0,  5,  5,  5,  5,  0, -5,
-        -10,  5,  5,  5,  5,  5,  0,-10,
-        -10,  0,  5,  0,  0,  0,  0,-10,
-        -20,-10,-10, -5, -5,-10,-10,-20
-    ];
+    public static void InitializeTables()
+    {
+        for (int pieceType = 0; pieceType <= 5; pieceType++)
+        {
+            // White pieces (0-5)
+            for (int square = 0; square < 64; square++)
+            {
+                middlegameEvaluationTable[pieceType, square] = middlegamePieceValues[pieceType] + middlegamePestoTables[pieceType][square];
+                endgameEvaluationTable[pieceType, square] = endgamePieceValues[pieceType] + endgamePestoTables[pieceType][square];
+            }
 
-    // King positional score
-    private static readonly int[] kingScore =
-    [
-         0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,   0,   0,   0,   0,   0,   0,
-         0,   0,   0, -10, -10, -10,   5,   5,
-         0,   0,  10, -10,  -5, -10,  10,   5
-    ];
+            // Black pieces (6-11) - flip squares
+            for (int square = 0; square < 64; square++)
+            {
+                int blackPieceType = pieceType + 6;
+                middlegameEvaluationTable[blackPieceType, square] = middlegamePieceValues[pieceType] + middlegamePestoTables[pieceType][FlipSquare(square)];
+                endgameEvaluationTable[blackPieceType, square] = endgamePieceValues[pieceType] + endgamePestoTables[pieceType][FlipSquare(square)];
+            }
+        }
+    }
 
-    // Mirror score table for black pieces (maps black squares to white perspective)
-    private static readonly int[] mirrorScore =
-    [
-        (int)a1, (int)b1, (int)c1, (int)d1, (int)e1, (int)f1, (int)g1, (int)h1,
-        (int)a2, (int)b2, (int)c2, (int)d2, (int)e2, (int)f2, (int)g2, (int)h2,
-        (int)a3, (int)b3, (int)c3, (int)d3, (int)e3, (int)f3, (int)g3, (int)h3,
-        (int)a4, (int)b4, (int)c4, (int)d4, (int)e4, (int)f4, (int)g4, (int)h4,
-        (int)a5, (int)b5, (int)c5, (int)d5, (int)e5, (int)f5, (int)g5, (int)h5,
-        (int)a6, (int)b6, (int)c6, (int)d6, (int)e6, (int)f6, (int)g6, (int)h6,
-        (int)a7, (int)b7, (int)c7, (int)d7, (int)e7, (int)f7, (int)g7, (int)h7,
-        (int)a8, (int)b8, (int)c8, (int)d8, (int)e8, (int)f8, (int)g8, (int)h8
-    ];
+    private static int FlipSquare(int square)
+    {
+        return square ^ 56; // Flip the square (rank 0 becomes rank 7, etc.)
+    }
 
-    // Board evaluation routine with positional scoring
+    // Board evaluation routine with PESTO tables and tapered evaluation
     public static int Evaluate()
     {
-        int score = 0;
-        int piece, square;
+        int middlegameScore = 0;
+        int endgameScore = 0;
+        int gamePhase = 0;
 
-        for (int pieceBB = P; pieceBB <= k; pieceBB++)
+        // Evaluate white pieces
+        for (int pieceType = Board.P; pieceType <= Board.K; pieceType++)
         {
-            ulong bitboard = bitboards[pieceBB];
+            ulong bitboard = Board.bitboards[pieceType];
 
             while (bitboard != 0)
             {
-                piece = pieceBB;
-                square = BitboardOperations.GetLs1bIndex(bitboard);
+                int square = BitboardOperations.GetLs1bIndex(bitboard);
 
-                score += materialScore[piece];
-
-                // Add positional scores
-                switch (piece)
-                {
-                    // evaluate white pieces
-                    case (int)Piece.P: score += pawnScore[square]; break;
-                    case (int)Piece.N: score += knightScore[square]; break;
-                    case (int)Piece.B: score += bishopScore[square]; break;
-                    case (int)Piece.R: score += rookScore[square]; break;
-                    case (int)Piece.Q: score += queenScore[square]; break;
-                    case (int)Piece.K: score += kingScore[square]; break;
-
-                    // evaluate black pieces
-                    case (int)Piece.p: score -= pawnScore[mirrorScore[square]]; break;
-                    case (int)Piece.n: score -= knightScore[square]; break;
-                    case (int)Piece.b: score -= bishopScore[square]; break;
-                    case (int)Piece.r: score -= rookScore[mirrorScore[square]]; break;
-                    case (int)Piece.q: score -= queenScore[square]; break;
-                    case (int)Piece.k: score -= kingScore[mirrorScore[square]]; break;
-                }
+                middlegameScore += middlegameEvaluationTable[pieceType, square];
+                endgameScore += endgameEvaluationTable[pieceType, square];
+                gamePhase += gamePhaseIncrement[pieceType];
 
                 BitboardOperations.PopBit(ref bitboard, square);
             }
-
         }
 
-        // Bishop pair bonus
-        int whiteBishops = BitboardOperations.CountBits(bitboards[(int)Piece.B]);
-        int blackBishops = BitboardOperations.CountBits(bitboards[(int)Piece.b]);
+        // Evaluate black pieces
+        for (int pieceType = Board.p; pieceType <= Board.k; pieceType++)
+        {
+            ulong bitboard = Board.bitboards[pieceType];
 
-        if (whiteBishops >= 2) score += BishopPairBonus;
-        if (blackBishops >= 2) score -= BishopPairBonus;
+            while (bitboard != 0)
+            {
+                int square = BitboardOperations.GetLs1bIndex(bitboard);
 
-        return (side == (int)Side.white) ? score : -score;
+                middlegameScore -= middlegameEvaluationTable[pieceType, square];
+                endgameScore -= endgameEvaluationTable[pieceType, square];
+                gamePhase += gamePhaseIncrement[pieceType];
+
+                BitboardOperations.PopBit(ref bitboard, square);
+            }
+        }
+
+        // Apply tapered evaluation
+        int middlegamePhase = Math.Min(gamePhase, 24); // cap at 24 to handle early promotions
+        int endgamePhase = 24 - middlegamePhase;
+
+        int score = (middlegameScore * middlegamePhase + endgameScore * endgamePhase) / 24;
+
+        // Return score from perspective of side to move
+        return (Board.side == (int)Side.white) ? score : -score;
     }
 }
