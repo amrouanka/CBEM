@@ -22,8 +22,8 @@ public static class Search
 
     static bool followpv = false, scorepv = false;
 
-    static readonly int fullDepthMoves = 4;
-    static readonly int reductionLimit = 3;
+    static readonly int fullDepthMoves = 2;
+    static readonly int reductionLimit = 2;
 
     // MVV LVA [attacker][victim]
     private static readonly int[,] mvv_lva = new int[,]
@@ -57,6 +57,7 @@ public static class Search
             // find best move within a given position
             int score = AlphaBeta(-50000, 50000, currentDepth);
 
+            /*
             Console.Write($"info score cp {score} depth {currentDepth} nodes {nodes} pv ");
 
             // loop over the moves within a PV line
@@ -68,10 +69,12 @@ public static class Search
 
             // print new line
             Console.WriteLine();
+            */
         }
 
         // best move placeholder
         Console.Write($"bestmove {GetMove(pvTable[0, 0])}");
+        if (Program.debug) Console.Write($" | depth {depth} nodes {nodes}");
         Console.WriteLine();
     }
 

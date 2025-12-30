@@ -4,33 +4,51 @@ using static MoveGenerator;
 
 class Program
 {
-    public const string EmptyBoard = "8/8/8/8/8/8/8/8 w - - ";
     public const string StartPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public const string TrickyPosition = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
     public const string PinPosition = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
     public const string Position5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+    public const string KnightD5Repetition = "3rr3/p1kp1pb1/Bn4p1/8/1B1pn3/3N4/PPP2P1P/1K1RR3 b - - 5 12";
+    public const string MirroredPosition = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
+    public const string ItalianPosition = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
+    public const string LichessHardPuzzle = "r5Nk/2b2p2/2p1p1np/pbq2B2/4Q2P/5NP1/PP3P2/3RR1K1 b - - 0 1";
+
+    // Debug mode variable
+    public static bool debug = true;
 
     static void Main()
     {
         PieceAttacks.InitAll();        // Initialize piece attacks
 
-        // Debug mode variable
-        bool debug = false;
-
         if (debug)
         {
             // Parse FEN and print board
-            Board.ParseFEN(TrickyPosition);
-            Search.SearchPosition(6); // 174587
+            Board.ParseFEN(StartPosition);
+            Search.SearchPosition(9); // 487852
 
-            Board.ParseFEN(Position5);
-            Search.SearchPosition(7); // 196506
+            Board.ParseFEN(TrickyPosition);
+            Search.SearchPosition(9); // 998788
 
             Board.ParseFEN(PinPosition);
-            Search.SearchPosition(9); // 141809
+            Search.SearchPosition(9); // 38642
 
-            Board.ParseFEN(StartPosition);
-            Search.SearchPosition(8); // 1066533
+            Board.ParseFEN(Position5);
+            Search.SearchPosition(9); // 161090
+
+            Board.ParseFEN(KnightD5Repetition);
+            Search.SearchPosition(9); // 153853
+
+            Board.ParseFEN(MirroredPosition);
+            Search.SearchPosition(9); // 347602
+
+            Board.ParseFEN(ItalianPosition);
+            Search.SearchPosition(9); // 348818
+
+            Board.ParseFEN(LichessHardPuzzle);
+            Search.SearchPosition(9); // 209469
+
+
+            Console.WriteLine("\n\n\n");
         }
         else
         {
