@@ -1,0 +1,20 @@
+feat: Add comprehensive search optimizations with LMR and Delta Pruning
+
+- Enhanced LMR logic with dynamic reduction based on move count and depth
+- Added Delta Pruning in quiescence search to skip unpromising captures
+- Optimized move scoring with O(1) piece detection replacing O(n) loops
+- Improved move sorting with efficient insertion sort for small move lists
+- Enhanced PV table management using Array.Copy for better cache performance
+- Added check detection caching to avoid redundant king position calculations
+- Implemented safety checks to prevent negative depth recursion
+- Added piece value lookup for capture evaluation in pruning
+
+Performance improvements:
+- Reduced computational complexity in critical search paths
+- Better cache locality and memory access patterns
+- Enhanced pruning to reduce search tree size
+- Improved move ordering for earlier alpha-beta cutoffs
+- Optimized data structures for faster access
+
+This represents the culmination of chess engine optimization work
+with significant performance improvements while maintaining accuracy.

@@ -8,7 +8,7 @@ CBEM (Chess Bitboard Engine Manager) is an educational chess engine project that
 
 ## Project Structure
 
-The project is organized into multiple versions, each building upon the previous one with additional features:
+The project is organized into multiple version, each building upon the previous one with additional features:
 
 ### CBEMv1.0_AlphaPruning
 - **Core Features**: Basic chess engine with alpha-beta pruning

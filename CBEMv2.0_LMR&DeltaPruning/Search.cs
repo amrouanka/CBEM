@@ -9,7 +9,7 @@ public static class Search
     private static int ply;
     // nodes counter
     private static long nodes;
-    // MAX PLY to reach within the search (to prevent overflow)
+    // MAX PLY to reach within the search - to prevent overflow
     private static readonly int maxPly = 64;
 
     static readonly int[,] killerMoves = new int[2, maxPly];
@@ -139,6 +139,7 @@ public static class Search
                 // full search
                 score = -AlphaBeta(-beta, -alpha, depth - 1);
             }
+
             // late move reduction LMR
             else
             {
