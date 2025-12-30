@@ -148,15 +148,13 @@ public static class Search
             {
                 // improved LMR conditions
                 bool isQuiet = GetMoveCapture(moveList.moves[count]) == 0 && GetMovePromoted(moveList.moves[count]) == 0;
-                int reduction = 0;
-
                 if (movesSearched >= fullDepthMoves &&
                     depth >= reductionLimit &&
                     !inCheck &&
                     isQuiet)
                 {
                     // dynamic reduction based on move count and depth
-                    reduction = 1 + (movesSearched / 6) + (depth / 8);
+                    int reduction = 1 + (movesSearched / 6) + (depth / 8);
                     reduction = Math.Min(reduction, 3); // cap reduction at 3 plies
 
                     // ensure we don't go below depth 1
@@ -290,7 +288,7 @@ public static class Search
             int captureValue = GetPieceValue(capturedPiece);
             int promotionValue = (GetMovePromoted(move) != 0) ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
 
-            if (evaluation + captureValue + promotionValue + 200 < alpha)
+            if (evaluation + captureValue + promotionValue + 50 < alpha)
                 continue;
 
             // preserve board state
