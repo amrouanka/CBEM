@@ -139,26 +139,95 @@ public static class Uci
             return;
 
         int depth = -1;
+        bool infinite = false;
         var parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+        // Reset time control variables
+        TimeManagement.movetime = -1;
+        TimeManagement.time = -1;
+        TimeManagement.inc = 0;
+        TimeManagement.movestogo = 30;
+        TimeManagement.timeset = false;
 
         for (int i = 0; i < parts.Length; i++)
         {
             if (parts[i] == "go")
                 continue;
 
-            if (parts[i] == "depth" && i + 1 < parts.Length)
+            // infinite search
+            if (parts[i] == "infinite")
+            {
+                infinite = true;
+                continue;
+            }
+            else if (parts[i] == "depth" && i + 1 < parts.Length)
             {
                 if (int.TryParse(parts[i + 1], out int parsedDepth))
                     depth = parsedDepth;
-                break;
             }
+            else if (parts[i] == "movetime" && i + 1 < parts.Length)
+            {
+                if (int.TryParse(parts[i + 1], out int parsedMovetime))
+                    TimeManagement.movetime = parsedMovetime;
+            }
+            else if (parts[i] == "wtime" && i + 1 < parts.Length && side == (int)Side.white)
+            {
+                if (int.TryParse(parts[i + 1], out int parsedTime))
+                    TimeManagement.time = parsedTime;
+            }
+            else if (parts[i] == "btime" && i + 1 < parts.Length && side == (int)Side.black)
+            {
+                if (int.TryParse(parts[i + 1], out int parsedTime))
+                    TimeManagement.time = parsedTime;
+            }
+            else if (parts[i] == "winc" && i + 1 < parts.Length && side == (int)Side.white)
+            {
+                if (int.TryParse(parts[i + 1], out int parsedInc))
+                    TimeManagement.inc = parsedInc;
+            }
+            else if (parts[i] == "binc" && i + 1 < parts.Length && side == (int)Side.black)
+            {
+                if (int.TryParse(parts[i + 1], out int parsedInc))
+                    TimeManagement.inc = parsedInc;
+            }
+            else if (parts[i] == "movestogo" && i + 1 < parts.Length)
+            {
+                if (int.TryParse(parts[i + 1], out int parsedMovestogo))
+                    TimeManagement.movestogo = parsedMovestogo;
+            }
+        }
+
+        // Set up timing - simple C-style approach
+        TimeManagement.starttime = TimeManagement.GetTimeMs();
+
+        if (infinite)
+        {
+            TimeManagement.time = -1;
+            TimeManagement.movetime = -1;
+            TimeManagement.timeset = false;
+        }
+        else if (TimeManagement.movetime != -1)
+        {
+            TimeManagement.timeset = true;
+            TimeManagement.stoptime = TimeManagement.starttime + TimeManagement.movetime;
+        }
+        else if (TimeManagement.time != -1)
+        {
+            // Simple C-style time management
+            TimeManagement.timeset = true;
+            TimeManagement.time /= TimeManagement.movestogo;
+            TimeManagement.time -= 50; // buffer
+            TimeManagement.stoptime = TimeManagement.starttime + TimeManagement.time + TimeManagement.inc;
         }
 
         // Default depth if no "depth" argument found
         if (depth == -1)
-            depth = 7;
+            depth = 64;
 
-        // Placeholder for actual search invocation
+        if (Program.debug)
+            Console.WriteLine($"info string time:{TimeManagement.time} start:{TimeManagement.starttime} stop:{TimeManagement.stoptime} depth:{depth} timeset:{TimeManagement.timeset}");
+
+        // Start search
         Search.SearchPosition(depth);
     }
 
@@ -172,6 +241,9 @@ public static class Uci
 
         while (true)
         {
+            if (TimeManagement.quit)
+                break;
+
             // Read a line from stdin
             string? input = Console.ReadLine();
             if (string.IsNullOrEmpty(input))
@@ -196,6 +268,9 @@ public static class Uci
             else if (input.StartsWith("go"))
             {
                 ParseGo(input);
+
+                if (TimeManagement.quit)
+                    break;
             }
             else if (input.StartsWith("quit"))
             {

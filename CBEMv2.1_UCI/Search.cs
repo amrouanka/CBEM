@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using static Board;
 using static MoveEncoding;
 using static MoveGenerator;
@@ -9,7 +10,7 @@ public static class Search
     private static int ply;
     // nodes counter
     private static long nodes;
-    // MAX PLY to reach within the search - to prevent overflow
+    // MAX PLY to reach within search - to prevent overflow
     private static readonly int maxPly = 64;
 
     static readonly int[,] killerMoves = new int[2, maxPly];
@@ -24,6 +25,8 @@ public static class Search
 
     static readonly int fullDepthMoves = 2;
     static readonly int reductionLimit = 2;
+
+
 
     // MVV LVA [attacker][victim]
     private static readonly int[,] mvv_lva = new int[,]
@@ -42,6 +45,7 @@ public static class Search
         nodes = 0;
         followpv = false;
         scorepv = false;
+        TimeManagement.stopped = false;
 
         // clear helper data structures
         Array.Clear(pvTable);
@@ -57,7 +61,6 @@ public static class Search
             // find best move within a given position
             int score = AlphaBeta(-50000, 50000, currentDepth);
 
-            /*
             Console.Write($"info score cp {score} depth {currentDepth} nodes {nodes} pv ");
 
             // loop over the moves within a PV line
@@ -69,11 +72,42 @@ public static class Search
 
             // print new line
             Console.WriteLine();
-            */
+
+            // check for stop condition
+            if (TimeManagement.stopped)
+                break;
         }
 
         // best move placeholder
-        Console.Write($"bestmove {GetMove(pvTable[0, 0])}");
+        int bestMove = pvTable[0, 0];
+        if (bestMove == 0)
+        {
+            MoveList moveList = new();
+            GenerateMoves(ref moveList);
+
+            for (int i = 0; i < moveList.count; i++)
+            {
+                BoardState state = CopyBoard();
+
+                if (MakeMove(moveList.moves[i], (int)MoveFlag.allMoves) == 0)
+                {
+                    TakeBack(state);
+                    continue;
+                }
+
+                TakeBack(state);
+                bestMove = moveList.moves[i];
+                break;
+            }
+
+            if (bestMove == 0)
+            {
+                Console.WriteLine("bestmove 0000");
+                return;
+            }
+        }
+
+        Console.Write($"bestmove {GetMove(bestMove)}");
         if (Program.debug) Console.Write($" | depth {depth} nodes {nodes}");
         Console.WriteLine();
     }
@@ -81,6 +115,14 @@ public static class Search
     // negamax alpha beta search
     private static int AlphaBeta(int alpha, int beta, int depth)
     {
+        // check for time and input every 1023 nodes
+        if ((nodes & 1023) == 0)
+            TimeManagement.Communicate();
+
+        // check if search should stop
+        if (TimeManagement.stopped)
+            return 0;
+
         // init PV length
         pvLength[ply] = ply;
 
@@ -187,8 +229,14 @@ public static class Search
             }
             // decrement ply
             ply--;
+
             // take move back
             TakeBack(state);
+
+            // return 0 if time is up
+            if (TimeManagement.stopped == true)
+                return 0;
+
             movesSearched++;
 
             // fail-hard beta cutoff
@@ -243,6 +291,14 @@ public static class Search
 
     public static int Quiescence(int alpha, int beta)
     {
+        // check for time and input every 1023 nodes
+        if ((nodes & 1023) == 0)
+            TimeManagement.Communicate();
+
+        // check if search should stop
+        if (TimeManagement.stopped)
+            return 0;
+
         // increment nodes count
         nodes++;
 
@@ -268,6 +324,8 @@ public static class Search
         // generate moves - all moves if in check, only captures otherwise
         if (inCheck)
         {
+            // count this quiescence node before calling AlphaBeta
+            nodes++;
             return AlphaBeta(alpha, beta, 1);
         }
         else
@@ -310,6 +368,10 @@ public static class Search
             // take move back
             TakeBack(state);
 
+            // return 0 if time is up
+            if (TimeManagement.stopped == true)
+                return 0;
+
             // fail-hard beta cutoff
             if (score >= beta)
                 return beta;
@@ -321,7 +383,6 @@ public static class Search
 
         return alpha;
     }
-
 
     private static void SortMoves(MoveList moveList)
     {
@@ -419,6 +480,10 @@ public static class Search
 
         return P; // default to pawn if not found
     }
+
+
+
+
 
     static void EnablepvScoring(MoveList moveList)
     {

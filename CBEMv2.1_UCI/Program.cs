@@ -24,28 +24,28 @@ class Program
         {
             // Parse FEN and print board
             Board.ParseFEN(StartPosition);
-            Search.SearchPosition(9); // 487852
+            Search.SearchPosition(9); // 201527
 
             Board.ParseFEN(TrickyPosition);
-            Search.SearchPosition(9); // 998788
+            Search.SearchPosition(9); // 838419
 
             Board.ParseFEN(PinPosition);
-            Search.SearchPosition(9); // 38642
+            Search.SearchPosition(9); // 36921
 
             Board.ParseFEN(Position5);
-            Search.SearchPosition(9); // 161090
+            Search.SearchPosition(9); // 156070
 
             Board.ParseFEN(KnightD5Repetition);
-            Search.SearchPosition(9); // 153853
+            Search.SearchPosition(9); // 128028
 
             Board.ParseFEN(MirroredPosition);
-            Search.SearchPosition(9); // 347602
+            Search.SearchPosition(9); // 336451
 
             Board.ParseFEN(ItalianPosition);
-            Search.SearchPosition(9); // 348818
+            Search.SearchPosition(9); // 267671
 
             Board.ParseFEN(LichessHardPuzzle);
-            Search.SearchPosition(9); // 209469
+            Search.SearchPosition(9); // 202566
 
 
             Console.WriteLine("\n\n\n");
