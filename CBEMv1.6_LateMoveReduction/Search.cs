@@ -12,17 +12,6 @@ public static class Search
     // MAX PLY to reach within the search (to prevent overflow)
     private static readonly int maxPly = 64;
 
-    // MVV LVA [attacker][victim]
-    private static readonly int[,] mvv_lva = new int[,]
-    {
-            {105, 205, 305, 405, 505, 605},
-            {104, 204, 304, 404, 504, 604},
-            {103, 203, 303, 403, 503, 603},
-            {102, 202, 302, 402, 502, 602},
-            {101, 201, 301, 401, 501, 601},
-            {100, 200, 300, 400, 500, 600}
-    };
-
     static readonly int[,] killerMoves = new int[2, maxPly];
     // history moves [piece][SQUARE] (not ply)
     static readonly int[,] historyMoves = new int[12, 64];
@@ -33,6 +22,19 @@ public static class Search
 
     static bool followpv = false, scorepv = false;
 
+    static readonly int fullDepthMoves = 4;
+    static readonly int reductionLimit = 3;
+
+    // MVV LVA [attacker][victim]
+    private static readonly int[,] mvv_lva = new int[,]
+    {
+            {105, 205, 305, 405, 505, 605},
+            {104, 204, 304, 404, 504, 604},
+            {103, 203, 303, 403, 503, 603},
+            {102, 202, 302, 402, 502, 602},
+            {101, 201, 301, 401, 501, 601},
+            {100, 200, 300, 400, 500, 600}
+    };
 
     // Main search routine using negamax with alpha-beta pruning
     public static void SearchPosition(int depth)
@@ -50,7 +52,6 @@ public static class Search
         // iteretive deepening
         for (int currentDepth = 1; currentDepth <= depth; currentDepth++)
         {
-            nodes = 0;
             followpv = true;
 
             // find best move within a given position
@@ -74,11 +75,9 @@ public static class Search
         Console.WriteLine();
     }
 
-
     // negamax alpha beta search
     private static int AlphaBeta(int alpha, int beta, int depth)
     {
-        bool foundPv = false;
         // init PV length
         pvLength[ply] = ply;
 
@@ -107,7 +106,10 @@ public static class Search
         if (followpv) EnablepvScoring(moveList);
 
         SortMoves(moveList);
-        
+
+        // number of moves searched within a move list
+        int movesSearched = 0;
+
         // loop over moves within a movelist
         for (int count = 0; count < moveList.count; count++)
         {
@@ -127,25 +129,53 @@ public static class Search
             legalMoves++;
 
             int score;
-            if (foundPv)
+
+            if (movesSearched == 0)
             {
-                score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
-                if (score > alpha && score < beta)
-                {
-                    // we are in a Principal Variation window - search with full window
-                    score = -AlphaBeta(-beta, -alpha, depth - 1);
-                }
-            }
-            else
-            {
+                // full search
                 score = -AlphaBeta(-beta, -alpha, depth - 1);
             }
+            // late move reduction LMR
+            else
+            {
+                if (movesSearched >= fullDepthMoves &&
+                    depth >= reductionLimit &&
+                    !inCheck &&
+                    GetMoveCapture(moveList.moves[count]) == 0 &&
+                    GetMovePromoted(moveList.moves[count]) == 0)
+                {
+                    // search current move with reduced depth
+                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 2);
+                }
+                else score = alpha + 1;
 
+                // PVS
+                if (score > alpha)
+                {
+                    /* Once you've found a move with a score that is between alpha and beta,
+                    the rest of the moves are searched with the goal of proving that they are all bad.
+                    It's possible to do this a bit faster than a search that worries that one
+                    of the remaining moves might be good. */
+                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
+
+                    /* If the algorithm finds out that it was wrong, and that one of the
+                    subsequent moves was better than the first PV move, it has to search again,
+                    in the normal alpha-beta manner.  This happens sometimes, and it's a waste of time,
+                    but generally not often enough to counteract the savings gained from doing the
+                    "bad move proof" search referred to earlier. */
+                    if (score > alpha && score < beta)
+                    {
+                        /* re-search the move that has failed to be proved to be bad
+                        with normal alpha beta score bounds*/
+                        score = -AlphaBeta(-beta, -alpha, depth - 1);
+                    }
+                }
+            }
             // decrement ply
             ply--;
-
             // take move back
             TakeBack(state);
+            movesSearched++;
 
             // fail-hard beta cutoff
             if (score >= beta)
@@ -165,7 +195,6 @@ public static class Search
 
                 // PV node (move)
                 alpha = score;
-                foundPv = true;
 
                 // write PV move
                 pvTable[ply, ply] = moveList.moves[count];
@@ -275,7 +304,7 @@ public static class Search
         Array.Reverse(moveList.moves, 0, moveList.count);
         Array.Reverse(moveList.scores, 0, moveList.count);
     }
-    
+
     // score moves
     private static int ScoreMove(int move)
     {

@@ -21,16 +21,16 @@ class Program
         {
             // Parse FEN and print board
             Board.ParseFEN(TrickyPosition);
-            Search.SearchPosition(6); // 652646
+            Search.SearchPosition(6); // 174587
 
             Board.ParseFEN(Position5);
-            Search.SearchPosition(6); // 350316
+            Search.SearchPosition(7); // 196506
 
             Board.ParseFEN(PinPosition);
-            Search.SearchPosition(9); // 717910
+            Search.SearchPosition(9); // 141809
 
             Board.ParseFEN(StartPosition);
-            Search.SearchPosition(8); // 3927590
+            Search.SearchPosition(8); // 1066533
         }
         else
         {
@@ -38,7 +38,7 @@ class Program
             Uci.UciLoop();
         }
     }
-    
+
     public static int GetTimeMs() => Environment.TickCount;
 
     static long PerftDriver(int depth)
@@ -84,7 +84,7 @@ class Program
 
             if (MakeMove(moveList.moves[i], (int)allMoves) == 0)
                 continue;
-            
+
             long nodesForMove = PerftDriver(depth - 1);
             totalNodes += nodesForMove;
 
