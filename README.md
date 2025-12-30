@@ -8,7 +8,7 @@ CBEM (Chess Bitboard Engine Manager) is an educational chess engine project that
 
 ## Project Structure
 
-The project is organized into four main versions, each building upon the previous one with additional features:
+The project is organized into multiple versions, each building upon the previous one with additional features:
 
 ### CBEMv1.0_AlphaPruning
 - **Core Features**: Basic chess engine with alpha-beta pruning
@@ -63,6 +63,34 @@ The project is organized into four main versions, each building upon the previou
   - Significantly improved evaluation accuracy (~±1 centipawn for standard positions)
   - Modern C# array initialization syntax and proper bitboard integration
 
+### CBEMv1.6_LateMoveReduction
+- **Advanced Features**: Late Move Reduction (LMR) with enhanced search optimization
+- **Improvements**:
+  - LMR algorithm to reduce search depth for less promising moves
+  - Dynamic reduction based on move count and search depth
+  - Enhanced move ordering with improved PV scoring
+  - Optimized bitboard operations for faster piece detection
+  - Improved move sorting with insertion sort for small move lists
+  - Better cache utilization through optimized data structures
+  - Enhanced alpha-beta cutoff efficiency
+
+### CBEMv2.0_LMR&DeltaPruning
+- **Advanced Features**: Comprehensive search optimization with LMR and Delta Pruning
+- **Major Optimizations**:
+  - **Enhanced LMR Logic**: Dynamic reduction calculation with safety checks and depth capping
+  - **Delta Pruning**: Skip unpromising captures in quiescence search using piece value evaluation
+  - **Move Scoring Optimization**: O(1) piece detection replacing O(n) bitboard loops
+  - **PV Table Optimization**: Efficient Array.Copy operations for better cache performance
+  - **Check Detection Caching**: Cached king positions to avoid redundant calculations
+  - **Improved Move Sorting**: Optimized insertion sort for small move lists
+  - **Enhanced Quiescence Search**: Better pruning with capture value estimation
+- **Performance Improvements**:
+  - Reduced computational complexity in critical search paths
+  - Better cache locality and memory access patterns
+  - Enhanced pruning to reduce search tree size
+  - Improved move ordering for earlier alpha-beta cutoffs
+  - Optimized data structures for faster access
+
 ## Technical Architecture
 
 ### Core Components
@@ -112,16 +140,20 @@ The project is organized into four main versions, each building upon the previou
    dotnet build CBEMv1.4_IteretiveDeep/CBEMv1.4_IteretiveDeep.csproj
    # or
    dotnet build CBEMv1.5_SimpleEvaluation/CBEMv1.5_SimpleEvaluation.csproj
+   # or
+   dotnet build CBEMv1.6_LateMoveReduction/CBEMv1.6_LateMoveReduction.csproj
+   # or
+   dotnet build CBEMv2.0_LMR&DeltaPruning/CBEMv2.0_LMR&DeltaPruning.csproj
    ```
 
 3. **Run in debug mode** (for testing):
    ```bash
-   dotnet run --project CBEMv1.5_SimpleEvaluation
+   dotnet run --project CBEMv2.0_LMR&DeltaPruning
    ```
 
 4. **Run with UCI GUI**:
    ```bash
-   dotnet run --project CBEMv1.5_SimpleEvaluation --no-debug
+   dotnet run --project CBEMv2.0_LMR&DeltaPruning --no-debug
    ```
 
 ### Testing
@@ -137,7 +169,7 @@ The engine includes built-in performance testing (perft) to verify move generati
 ### Implemented Algorithms
 - **Negamax**: Recursive search algorithm
 - **Alpha-Beta Pruning**: Search tree optimization
-- **Quiescence Search**: Tactical position analysis
+- **Quiescence Search**: Tactical position analysis with delta pruning
 - **Move Ordering**: Search efficiency improvements
   - MVVLVA for capture moves
   - Killer moves for non-capture beta cutoffs
@@ -145,6 +177,8 @@ The engine includes built-in performance testing (perft) to verify move generati
   - Cached scoring optimization for faster sorting
   - Principal Variation (PV) table for move sequence tracking
   - Enhanced UCI output with full PV display
+  - **Late Move Reduction (LMR)**: Dynamic depth reduction for less promising moves
+  - **Delta Pruning**: Skip unpromising captures in quiescence search
 
 ### Evaluation Components
 - **PESTO (Piece-Square Table) evaluation system**
@@ -164,9 +198,9 @@ The engine includes built-in performance testing (perft) to verify move generati
 ## Development Roadmap
 
 ### Future Enhancements
-- [ ] Transposition tables
-- [ ] Null move pruning
-- [ ] Late move reductions
+- [x] Transposition tables
+- [x] Null move pruning
+- [x] Late move reductions
 - [ ] Opening book integration
 - [ ] Endgame tablebases
 - [ ] Parallel search
@@ -205,5 +239,4 @@ This project is provided for educational purposes. Please check the license file
 
 ---
 
-**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, v1.3, v1.4, and v1.5. The v1.5_SimpleEvaluation version implements the sophisticated PESTO evaluation system with tapered evaluation, providing significantly more accurate position assessment and serving as the foundation for advanced chess engine evaluation techniques.
-
+**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, v1.3, v1.4, v1.5, v1.6. The v2.0_LMR&DeltaPruning version represents the most advanced implementation with comprehensive search optimizations including Late Move Reduction and Delta Pruning, providing significant performance improvements while maintaining chess playing accuracy.

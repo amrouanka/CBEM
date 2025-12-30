@@ -93,7 +93,11 @@ public static class Search
         // increment nodes count
         nodes++;
 
-        bool inCheck = PieceAttacks.IsSquareAttacked((side == (int)Side.white) ? BitboardOperations.GetLs1bIndex(bitboards[K]) : BitboardOperations.GetLs1bIndex(bitboards[k]), side ^ 1);
+        // cache king position to avoid repeated calculations
+        int kingSquare = (side == (int)Side.white) ?
+            BitboardOperations.GetLs1bIndex(bitboards[K]) :
+            BitboardOperations.GetLs1bIndex(bitboards[k]);
+        bool inCheck = PieceAttacks.IsSquareAttacked(kingSquare, side ^ 1);
 
         int legalMoves = 0;
 
@@ -138,14 +142,22 @@ public static class Search
             // late move reduction LMR
             else
             {
+                // improved LMR conditions
+                bool isQuiet = GetMoveCapture(moveList.moves[count]) == 0 && GetMovePromoted(moveList.moves[count]) == 0;
+                int reduction = 0;
+
                 if (movesSearched >= fullDepthMoves &&
                     depth >= reductionLimit &&
                     !inCheck &&
-                    GetMoveCapture(moveList.moves[count]) == 0 &&
-                    GetMovePromoted(moveList.moves[count]) == 0)
+                    isQuiet)
                 {
-                    // search current move with reduced depth
-                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 2);
+                    // dynamic reduction based on move count and depth
+                    reduction = 1 + (movesSearched / 6) + (depth / 8);
+                    reduction = Math.Min(reduction, 3); // cap reduction at 3 plies
+
+                    // ensure we don't go below depth 1
+                    int reducedDepth = Math.Max(1, depth - reduction - 1);
+                    score = -AlphaBeta(-alpha - 1, -alpha, reducedDepth);
                 }
                 else score = alpha + 1;
 
@@ -153,13 +165,13 @@ public static class Search
                 if (score > alpha)
                 {
                     /* Once you've found a move with a score that is between alpha and beta,
-                    the rest of the moves are searched with the goal of proving that they are all bad.
+                    rest of the moves are searched with goal of proving that they are all bad.
                     It's possible to do this a bit faster than a search that worries that one
                     of the remaining moves might be good. */
                     score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
 
-                    /* If the algorithm finds out that it was wrong, and that one of the
-                    subsequent moves was better than the first PV move, it has to search again,
+                    /* If the algorithm finds out that it was wrong, and that one of
+                    subsequent moves was better than first PV move, it has to search again,
                     in the normal alpha-beta manner.  This happens sometimes, and it's a waste of time,
                     but generally not often enough to counteract the savings gained from doing the
                     "bad move proof" search referred to earlier. */
@@ -199,8 +211,14 @@ public static class Search
                 // write PV move
                 pvTable[ply, ply] = moveList.moves[count];
 
-                for (int nextPly = ply + 1; nextPly < pvLength[ply + 1]; nextPly++)
-                    pvTable[ply, nextPly] = pvTable[ply + 1, nextPly];
+                // copy remaining PV line from deeper ply
+                int copyLength = pvLength[ply + 1] - (ply + 1);
+                if (copyLength > 0)
+                {
+                    Array.Copy(pvTable, ply + 1 + (ply + 1) * maxPly,
+                              pvTable, ply + 1 + ply * maxPly,
+                              copyLength);
+                }
 
                 // adjust PV length to include the current move
                 pvLength[ply] = pvLength[ply + 1];
@@ -236,10 +254,11 @@ public static class Search
         if (evaluation > alpha)
             alpha = evaluation;
 
-        // check for check evasion
-        bool inCheck = PieceAttacks.IsSquareAttacked((side == (int)Side.white) ?
+        // cache king position to avoid repeated calculations
+        int kingSquare = (side == (int)Side.white) ?
             BitboardOperations.GetLs1bIndex(bitboards[K]) :
-            BitboardOperations.GetLs1bIndex(bitboards[k]), side ^ 1);
+            BitboardOperations.GetLs1bIndex(bitboards[k]);
+        bool inCheck = PieceAttacks.IsSquareAttacked(kingSquare, side ^ 1);
 
         // create move list instance
         MoveList moveList = new();
@@ -260,6 +279,15 @@ public static class Search
         for (int count = 0; count < moveList.count; count++)
         {
             int move = moveList.moves[count];
+
+            // delta pruning - skip captures that can't possibly raise alpha
+            int targetSquare = GetMoveTarget(move);
+            int capturedPiece = GetPieceAtSquare(targetSquare);
+            int captureValue = GetPieceValue(capturedPiece);
+            int promotionValue = (GetMovePromoted(move) != 0) ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
+
+            if (evaluation + captureValue + promotionValue + 200 < alpha)
+                continue;
 
             // preserve board state
             BoardState state = CopyBoard();
@@ -299,10 +327,22 @@ public static class Search
         for (int i = 0; i < moveList.count; i++)
             moveList.scores[i] = ScoreMove(moveList.moves[i]);
 
-        // sort by cached scores (descending)
-        Array.Sort(moveList.scores, moveList.moves, 0, moveList.count);
-        Array.Reverse(moveList.moves, 0, moveList.count);
-        Array.Reverse(moveList.scores, 0, moveList.count);
+        // simple insertion sort for move lists (usually small)
+        for (int i = 1; i < moveList.count; i++)
+        {
+            int keyMove = moveList.moves[i];
+            int keyScore = moveList.scores[i];
+            int j = i - 1;
+
+            while (j >= 0 && moveList.scores[j] < keyScore)
+            {
+                moveList.moves[j + 1] = moveList.moves[j];
+                moveList.scores[j + 1] = moveList.scores[j];
+                j--;
+            }
+            moveList.moves[j + 1] = keyMove;
+            moveList.scores[j + 1] = keyScore;
+        }
     }
 
     // score moves
@@ -317,43 +357,16 @@ public static class Search
                 return 20000;
             }
         }
+
         // score capture move
         if (GetMoveCapture(move) != 0)
         {
-            // init target piece
-            int target_piece = (int)Piece.P;
-
-            // pick up bitboard piece index ranges depending on side
-            int start_piece, end_piece;
-
-            // pick up side to move
-            if (side == (int)Side.white)
-            {
-                start_piece = (int)Piece.p;
-                end_piece = (int)Piece.k;
-            }
-            else
-            {
-                start_piece = (int)Piece.P;
-                end_piece = (int)Piece.K;
-            }
-
-            // loop over bitboards opposite to the current side to move
-            for (int bb_piece = start_piece; bb_piece <= end_piece; bb_piece++)
-            {
-                // if there's a piece on the target square
-                if (BitboardOperations.GetBit(bitboards[bb_piece], GetMoveTarget(move)))
-                {
-                    // remove it from corresponding bitboard
-                    target_piece = bb_piece;
-                    break;
-                }
-            }
+            int targetSquare = GetMoveTarget(move);
+            int targetPiece = GetPieceAtSquare(targetSquare);
 
             // score move by MVV LVA lookup [source piece][target piece]
-            return mvv_lva[GetMovePiece(move) % 6, target_piece % 6] + 10000;
+            return mvv_lva[GetMovePiece(move) % 6, targetPiece % 6] + 10000;
         }
-
         // score quiet move
         else
         {
@@ -364,6 +377,45 @@ public static class Search
             else
                 return historyMoves[GetMovePiece(move), GetMoveTarget(move)];
         }
+    }
+
+    // helper method to get piece values for delta pruning
+    private static int GetPieceValue(int piece)
+    {
+        return piece switch
+        {
+            P or p => 100,
+            N or n => 320,
+            B or b => 330,
+            R or r => 500,
+            Q or q => 900,
+            K or k => 20000,
+            _ => 0
+        };
+    }
+
+    // helper method to get piece at square without bitboard loop
+    private static int GetPieceAtSquare(int square)
+    {
+        ulong mask = 1UL << square;
+
+        // check white pieces
+        if ((bitboards[P] & mask) != 0) return P;
+        if ((bitboards[N] & mask) != 0) return N;
+        if ((bitboards[B] & mask) != 0) return B;
+        if ((bitboards[R] & mask) != 0) return R;
+        if ((bitboards[Q] & mask) != 0) return Q;
+        if ((bitboards[K] & mask) != 0) return K;
+
+        // check black pieces
+        if ((bitboards[p] & mask) != 0) return p;
+        if ((bitboards[n] & mask) != 0) return n;
+        if ((bitboards[b] & mask) != 0) return b;
+        if ((bitboards[r] & mask) != 0) return r;
+        if ((bitboards[q] & mask) != 0) return q;
+        if ((bitboards[k] & mask) != 0) return k;
+
+        return P; // default to pawn if not found
     }
 
     static void EnablepvScoring(MoveList moveList)
