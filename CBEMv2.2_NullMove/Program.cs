@@ -14,7 +14,7 @@ class Program
     public const string LichessHardPuzzle = "r5Nk/2b2p2/2p1p1np/pbq2B2/4Q2P/5NP1/PP3P2/3RR1K1 b - - 0 1";
 
     // Debug mode variable
-    public static bool debug = false;
+    public static bool debug = true;
 
     static void Main()
     {
@@ -24,28 +24,19 @@ class Program
         {
             // Parse FEN and print board
             Board.ParseFEN(StartPosition);
-            Search.SearchPosition(9); // 201527
-
+            Search.SearchPosition(9); // with NullMove: 165289 + with futality -> 170405
             Board.ParseFEN(TrickyPosition);
-            Search.SearchPosition(9); // 838419
-
-            Board.ParseFEN(PinPosition);
-            Search.SearchPosition(9); // 36921
-
+            Search.SearchPosition(9); // 536364 -> 177507
             Board.ParseFEN(Position5);
-            Search.SearchPosition(9); // 156070
-
+            Search.SearchPosition(9); // 49527 -> 62262
             Board.ParseFEN(KnightD5Repetition);
-            Search.SearchPosition(9); // 128028
-
+            Search.SearchPosition(9); // 179622 -> 102423
             Board.ParseFEN(MirroredPosition);
-            Search.SearchPosition(9); // 336451
-
+            Search.SearchPosition(9); // 140861 -> 39944
             Board.ParseFEN(ItalianPosition);
-            Search.SearchPosition(9); // 267671
-
+            Search.SearchPosition(9); // 215480 -> 160117
             Board.ParseFEN(LichessHardPuzzle);
-            Search.SearchPosition(9); // 202566
+            Search.SearchPosition(9); // 105824 -> 28101
 
 
             Console.WriteLine("\n\n\n");
