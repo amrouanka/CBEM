@@ -478,7 +478,7 @@ public static class Search
         if ((bitboards[q] & mask) != 0) return q;
         if ((bitboards[k] & mask) != 0) return k;
 
-        return P; // default to pawn if not found
+        return 0; // return 0 if no piece found
     }
 
 

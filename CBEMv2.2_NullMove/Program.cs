@@ -14,7 +14,7 @@ class Program
     public const string LichessHardPuzzle = "r5Nk/2b2p2/2p1p1np/pbq2B2/4Q2P/5NP1/PP3P2/3RR1K1 b - - 0 1";
 
     // Debug mode variable
-    public static bool debug = false;
+    public static bool debug = true;
 
     static void Main()
     {

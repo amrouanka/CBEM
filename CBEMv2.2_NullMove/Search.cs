@@ -61,7 +61,7 @@ public static class Search
             // find best move within a given position
             int score = AlphaBeta(-50000, 50000, currentDepth);
 
-            /* Console.Write($"info score cp {score} depth {currentDepth} nodes {nodes} pv ");
+            Console.Write($"info score cp {score} depth {currentDepth} nodes {nodes} pv ");
 
             // loop over the moves within a PV line
             for (int count = 0; count < pvLength[0]; count++)
@@ -71,7 +71,7 @@ public static class Search
             }
 
             // print new line
-            Console.WriteLine(); */
+            Console.WriteLine();
 
             // check for stop condition
             if (TimeManagement.stopped)
@@ -503,12 +503,8 @@ public static class Search
         if ((bitboards[q] & mask) != 0) return q;
         if ((bitboards[k] & mask) != 0) return k;
 
-        return P; // default to pawn if not found
+        return 0; // return 0 if no piece found
     }
-
-
-
-
 
     static void EnablepvScoring(MoveList moveList)
     {
