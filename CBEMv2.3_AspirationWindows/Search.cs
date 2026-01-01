@@ -10,6 +10,8 @@ public static class Search
     private static int ply;
     // Total nodes searched in current iteration
     private static long nodes;
+    // Public property to access the last node count
+    public static long LastNodeCount => nodes;
     // Maximum search depth to prevent array overflow
     private static readonly int maxPly = 64;
 
