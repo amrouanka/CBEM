@@ -80,8 +80,8 @@ public static class Search
             // aspiration window adjustment
             if (currentDepth > 1)
             {
-                alpha = score - 35;
-                beta = score + 35;
+                alpha = score - 15;
+                beta = score + 15;
             }
 
             // Output search info in UCI format
