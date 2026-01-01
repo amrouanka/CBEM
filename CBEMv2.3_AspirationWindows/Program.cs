@@ -12,6 +12,7 @@ class Program
     public const string MirroredPosition = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
     public const string ItalianPosition = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
     public const string LichessHardPuzzle = "r5Nk/2b2p2/2p1p1np/pbq2B2/4Q2P/5NP1/PP3P2/3RR1K1 b - - 0 1";
+    public const string EndgameStudy = "5r2/8/1R6/ppk3p1/2N3P1/P4b2/1K6/5B2 w - - 0 1";
 
     // Debug mode variable
     public static bool debug = false;
@@ -24,19 +25,21 @@ class Program
         {
             // Parse FEN and print board
             Board.ParseFEN(StartPosition);
-            Search.SearchPosition(11); // 520873
+            Search.SearchPosition(12);  // 585997
             Board.ParseFEN(TrickyPosition);
-            Search.SearchPosition(11); // 1182410
+            Search.SearchPosition(12);  // 1891123
             Board.ParseFEN(Position5);
-            Search.SearchPosition(13); // 663353
+            Search.SearchPosition(13);  // 344695
             Board.ParseFEN(KnightD5Repetition);
-            Search.SearchPosition(12); // 2081315
+            Search.SearchPosition(12);  // 369704
             Board.ParseFEN(MirroredPosition);
-            Search.SearchPosition(12); // 497845
+            Search.SearchPosition(13);  // 459246
             Board.ParseFEN(ItalianPosition);
-            Search.SearchPosition(11); // 840168
+            Search.SearchPosition(13);  // 1117291
             Board.ParseFEN(LichessHardPuzzle);
-            Search.SearchPosition(12); // 454255
+            Search.SearchPosition(14);  // 1478089
+            Board.ParseFEN(EndgameStudy);
+            Search.SearchPosition(14);  // 442544
 
 
             Console.WriteLine("\n\n\n");
