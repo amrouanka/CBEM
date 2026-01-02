@@ -62,27 +62,38 @@ public static class Search
         // Iterative deepening: search progressively deeper
         int alpha = -50000;
         int beta = 50000;
-        for (int currentDepth = 1; currentDepth <= depth; currentDepth++)
+        int currentDepth = 1;
+        while (currentDepth <= depth)
         {
             followpv = true;
 
             int score = AlphaBeta(alpha, beta, currentDepth);
 
-            // If the score is outside the aspiration window, restart with full window
+            // If the score is outside the aspiration window, expand window and skip depth
             // This handles cases where the initial window was too narrow
-            if (score <= alpha || score >= beta)
+            if (score <= alpha)
             {
-                alpha = -50000;
-                beta = 50000;
+                // score is too low, expand alpha window
+                alpha -= 12;
+                currentDepth++;
+                continue;
+            }
+            else if (score >= beta)
+            {
+                // score is too high, expand beta window
+                beta += 12;
+                currentDepth++;
                 continue;
             }
 
             // aspiration window adjustment
             if (currentDepth > 1)
             {
-                alpha = score - 15;
-                beta = score + 15;
+                alpha = score - 12;
+                beta = score + 12;
             }
+
+            currentDepth++;
 
             // Output search info in UCI format
             if (!Program.debug)

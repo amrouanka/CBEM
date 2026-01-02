@@ -28,7 +28,7 @@ class Program
 
         if (debug)
         {
-            TestNodes(15);    // 47,707,911 nodes, with alpha-beta window of ±15
+            TestNodes(15);    // 27,660,634 nodes (Best so far)
 
             Console.WriteLine("\n\n\n");
         }
