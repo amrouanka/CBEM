@@ -108,6 +108,7 @@ public static class Board
         }
 
         UpdateOccupancies();
+        Zobrist.hashKey = Zobrist.GenerateHashKey();
     }
 
     public static void UpdateOccupancies()

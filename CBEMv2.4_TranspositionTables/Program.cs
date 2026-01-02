@@ -24,8 +24,6 @@ class Program
 
     static void Main()
     {
-        PieceAttacks.InitAll();        // Initialize piece attacks
-
         if (debug)
         {
             TestNodes(12); // 4.6m

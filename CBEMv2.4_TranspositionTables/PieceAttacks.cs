@@ -1,7 +1,7 @@
 
-using static Side;
-using static Board;
 using static BitboardOperations;
+using static Board;
+using static Side;
 
 public static class PieceAttacks
 {
@@ -344,10 +344,14 @@ public static class PieceAttacks
         return GetBishopAttacks(square, occupancy) | GetRookAttacks(square, occupancy);
     }
 
-    public static void InitAll()
+    static PieceAttacks()
     {
-        InitLeapersAttacks();
+        /* In C#, a static constructor is guaranteed to be executed by the .NET runtime before any static members of the class are used  
+        for the first time. So, the moment the search algorithm calls Evaluation.Evaluate(), the runtime ensures that
+        InitializeTables() has already been run exactly once. */
 
+        // Initialize attack tables
+        InitLeapersAttacks();
         InitSliderAttacks(true);
         InitSliderAttacks(false);
     }
