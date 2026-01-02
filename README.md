@@ -111,7 +111,7 @@ The project is organized into multiple version, each building upon the previous 
   - Delta pruning optimized for quiescence search efficiency
 
 ### CBEMv2.3_AspirationWindows
-- **Advanced Features**: Aspiration windows and fine-tuned search optimization for maximum performance
+- **Advanced Features**: Aspiration windows implementation with known limitations
 - **Major Optimizations**:
   - **Aspiration Windows**: Dynamic search windows around expected scores to reduce search space
   - **Optimized Window Size**: ±35 point window provides best balance between cutoffs and restarts
@@ -119,16 +119,16 @@ The project is organized into multiple version, each building upon the previous 
   - **Optimal LMR Parameters**: fullDepthMoves = 2, reductionLimit = 3 for deep searches
   - **Enhanced Move Ordering**: Killer moves and history heuristic with capture filtering
   - **Comprehensive Testing**: Extensive parameter tuning across multiple test positions
-- **Performance Improvements**:
-  - **15% additional node reduction** over v2.2 baseline with increased search depths
-  - **Consistent performance**: Optimized parameters scale well with deeper searches (12-14 ply)
-  - **Stable search quality**: Maintains accuracy while achieving significant speed gains
-  - **Best configuration**: ±35 aspiration window + aggressive LMR provides optimal results
+- **⚠️ Important Limitation**: **Aspiration windows are only effective when combined with transposition tables**. Without transposition tables, aspiration windows can actually weaken the engine by causing search restarts and skipping depths, making v2.3 weaker than v2.2 in practice.
+- **Performance Impact**:
+  - **Theoretical improvements**: 15% additional node reduction over v2.2 baseline with increased search depths
+  - **Practical reality**: Without transposition tables, the engine performs worse than v2.2 due to aspiration window inefficiencies
+  - **Recommendation**: Use v2.2 for better performance until transposition tables are implemented
 - **Technical Details**:
-  - Aspiration window restart logic handles score falls outside window gracefully
+  - Aspiration window restart logic handles score falls outside window but causes depth skipping
   - LMR reduction carefully balanced to avoid search instability
   - Capture checks in killer moves maintained for theoretical correctness
-  - Parameters extensively tested across various position types and depth levels
+  - Parameters extensively tested but limited by lack of transposition table support
 
 ## Technical Architecture
 
@@ -286,4 +286,6 @@ This project is provided for educational purposes. Please check the license file
 
 ---
 
-**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, v1.3, v1.4, v1.5, v1.6. The v2.2_NullMove version represents comprehensive search optimizations including null move pruning, aggressive LMR, enhanced delta pruning, and futility pruning, providing dramatic performance improvements (50-80% node reduction). The v2.3_AspirationWindows version is the most advanced implementation, adding aspiration windows and fine-tuned search optimization for maximum performance, achieving additional 15% node reduction over v2.2 with optimized parameters that scale well with deeper searches.
+**Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, v1.3, v1.4, v1.5, v1.6. The v2.2_NullMove version represents comprehensive search optimizations including null move pruning, aggressive LMR, enhanced delta pruning, and futility pruning, providing dramatic performance improvements (50-80% node reduction). 
+
+**⚠️ Important**: The v2.3_AspirationWindows version implements aspiration windows but **requires transposition tables to be effective**. Without transposition tables, aspiration windows cause search restarts and depth skipping, making v2.3 **weaker than v2.2** in practice. For best performance, use v2.2 until transposition tables are implemented in a future version.
