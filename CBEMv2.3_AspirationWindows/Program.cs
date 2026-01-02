@@ -20,7 +20,7 @@ class Program
     public const string GrunfeldExchange = "rn1q1rk1/pp2ppbp/6p1/2pP4/2P1P1b1/2N5/PP2N1PP/R1BQKB1R w KQ - 1 9";
 
     // Debug mode variable
-    public static bool debug = false;
+    public static bool debug = true;
 
     static void Main()
     {
@@ -28,7 +28,7 @@ class Program
 
         if (debug)
         {
-            TestNodes(15);    // 27,660,634 nodes (Best so far)
+            TestNodes(12); // 4.6m
 
             Console.WriteLine("\n\n\n");
         }
@@ -38,6 +38,21 @@ class Program
             Uci.UciLoop();
         }
     }
+    /*            if (score <= alpha || score >= beta)
+            {
+                // Failed low or failed high, retry with full window
+                alpha = -50000;
+                beta = 50000;
+                score = AlphaBeta(alpha, beta, currentDepth);
+            }
+
+            // aspiration window adjustment
+            if (currentDepth > 1)
+            {
+                alpha = score - 50;
+                beta = score + 50;
+            }
+*/
 
     public static int GetTimeMs() => Environment.TickCount;
 

@@ -54,63 +54,60 @@ public static class Search
         scorepv = false;
         TimeManagement.stopped = false;
 
-        // Clear search data structures for new search
         Array.Clear(pvTable);
         Array.Clear(killerMoves);
         Array.Clear(historyMoves);
 
-        // Iterative deepening: search progressively deeper
         int alpha = -50000;
         int beta = 50000;
-        int currentDepth = 1;
-        while (currentDepth <= depth)
+        int score = 0;
+        int window = 50; // Initial window size (approx 0.5 pawn)
+
+        for (int currentDepth = 1; currentDepth <= depth; currentDepth++)
         {
             followpv = true;
 
-            int score = AlphaBeta(alpha, beta, currentDepth);
+            // Perform the search with aspiration windows
+            score = AlphaBeta(alpha, beta, currentDepth);
 
-            // If the score is outside the aspiration window, expand window and skip depth
-            // This handles cases where the initial window was too narrow
-            if (score <= alpha)
+            // If the score falls outside our window, we must re-search
+            while (score <= alpha || score >= beta)
             {
-                // score is too low, expand alpha window
-                alpha -= 12;
-                currentDepth++;
-                continue;
-            }
-            else if (score >= beta)
-            {
-                // score is too high, expand beta window
-                beta += 12;
-                currentDepth++;
-                continue;
-            }
+                // If we fail low (score <= alpha), the score is worse than expected. 
+                // We lower alpha (expand search downwards).
+                if (score <= alpha) alpha -= window;
 
-            // aspiration window adjustment
-            if (currentDepth > 1)
-            {
-                alpha = score - 12;
-                beta = score + 12;
+                // If we fail high (score >= beta), the score is better than expected.
+                // We raise beta (expand search upwards).
+                if (score >= beta) beta += window;
+
+                // Widen the window for the next attempt if we fail again
+                window += (window / 2);
+
+                // Re-search with the wider window at the SAME depth
+                score = AlphaBeta(alpha, beta, currentDepth);
+
+                // Safety break for time management
+                if (TimeManagement.stopped) break;
             }
 
-            currentDepth++;
+            // Narrow the window for the next depth iteration around the found score
+            alpha = score - 50;
+            beta = score + 50;
+            window = 50; // Reset window expansion
+
+            if (TimeManagement.stopped) break;
 
             // Output search info in UCI format
             if (!Program.debug)
             {
                 Console.Write($"info score cp {score} depth {currentDepth} nodes {nodes} pv ");
-
-                // Print Principal Variation
                 for (int count = 0; count < pvLength[0]; count++)
                 {
                     Console.Write($"{GetMove(pvTable[0, count])} ");
                 }
-
                 Console.WriteLine();
             }
-
-            if (TimeManagement.stopped)
-                break;
         }
 
         // Get best move from PV table or find first legal move
