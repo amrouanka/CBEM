@@ -47,4 +47,5 @@ public struct BoardState
     public int side;
     public int enPassant;
     public int castle;
+    public ulong hashKey;
 }

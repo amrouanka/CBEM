@@ -26,9 +26,12 @@ class Program
     {
         if (debug)
         {
-            TestNodes(12); // 4.6m
+            //TestNodes(12); // 4.6m (v2.2) - 9m (v2.3) - ?m (v2.4 - current)
 
-            Console.WriteLine("\n\n\n");
+            Board.ParseFEN(Position5);
+            Board.PrintBoard();
+
+            PerftTest(4);
         }
         else
         {
@@ -36,21 +39,7 @@ class Program
             Uci.UciLoop();
         }
     }
-    /*            if (score <= alpha || score >= beta)
-            {
-                // Failed low or failed high, retry with full window
-                alpha = -50000;
-                beta = 50000;
-                score = AlphaBeta(alpha, beta, currentDepth);
-            }
 
-            // aspiration window adjustment
-            if (currentDepth > 1)
-            {
-                alpha = score - 50;
-                beta = score + 50;
-            }
-*/
 
     public static int GetTimeMs() => Environment.TickCount;
 

@@ -29,22 +29,35 @@ public static class Zobrist
         InitRandomKeys();    // Initialize Zobrist hash keys
     }
 
-    // Get random 64-bit number using XOR-shift algorithm
+    private static uint GetRandomU32Number()
+    {
+        // Get current state
+        uint number = randomState;
+
+        // XOR shift algorithm
+        number ^= number << 13;
+        number ^= number >> 17;
+        number ^= number << 5;
+
+        // Update random number state
+        randomState = number;
+
+        // Return random number
+        return number;
+    }
+
     private static ulong GetRandomU64Number()
     {
-        // XOR-shift random number generator
-        randomState ^= randomState << 13;
-        randomState ^= randomState >> 17;
-        randomState ^= randomState << 5;
+        ulong n1, n2, n3, n4;
 
-        // Combine multiple states to create 64-bit number
-        ulong number1 = (ulong)randomState;
-        randomState ^= randomState << 13;
-        randomState ^= randomState >> 17;
-        randomState ^= randomState << 5;
-        ulong number2 = (ulong)randomState;
+        // Init random numbers slicing 16 bits from MS1B side
+        n1 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // And operation to get 16 bits (0xFFFF) - first 16 bits (bits 0-15)
+        n2 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // Second 16 bits (bits 16-31)
+        n3 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // Third 16 bits (bits 32-47)
+        n4 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // Fourth 16 bits (bits 48-63)
 
-        return (number1 << 32) | number2;
+        // Return random number by combining the four 16-bit parts into a 64-bit number
+        return n1 | (n2 << 16) | (n3 << 32) | (n4 << 48);
     }
 
     // Initialize random hash keys

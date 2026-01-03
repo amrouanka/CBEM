@@ -526,6 +526,4 @@ public static class Search
             }
         }
     }
-
-
 }

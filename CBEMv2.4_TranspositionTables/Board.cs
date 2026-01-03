@@ -130,7 +130,8 @@ public static class Board
             occupancies = (ulong[])occupancies.Clone(),
             side = side,
             enPassant = enPassant,
-            castle = castle
+            castle = castle,
+            hashKey = Zobrist.hashKey,
         };
     }
 
@@ -141,6 +142,7 @@ public static class Board
         side = state.side;
         enPassant = state.enPassant;
         castle = state.castle;
+        Zobrist.hashKey = state.hashKey;
     }
 
     public static void PrintBoard()
@@ -172,6 +174,8 @@ public static class Board
         Console.WriteLine($"     Side:     {(side == 0 ? "white" : "black")}");
         Console.WriteLine($"     Enpassant:   {(enPassant != (int)noSquare ? squareToCoordinates[enPassant] : "no")}");
         Console.WriteLine($"     Castling:  {((castle & (int)wk) != 0 ? 'K' : '-')}{((castle & (int)wq) != 0 ? 'Q' : '-')}{((castle & (int)bk) != 0 ? 'k' : '-')}{((castle & (int)bq) != 0 ? 'q' : '-')}\n");
+
+        Console.WriteLine($"     Hash key:  {Zobrist.hashKey}\n\n");
     }
 
     public static void PrintBitboard(ulong bitboard)

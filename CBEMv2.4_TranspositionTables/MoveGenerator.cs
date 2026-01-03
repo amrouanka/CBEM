@@ -4,6 +4,7 @@ using static MoveEncoding;
 using static PieceAttacks;
 using static Side;
 using static Square;
+using static Zobrist;
 
 public static class MoveGenerator
 {
@@ -516,6 +517,9 @@ public static class MoveGenerator
             BitboardOperations.PopBit(ref bitboards[piece], sourceSquare);
             BitboardOperations.SetBit(ref bitboards[piece], targetSquare);
 
+            Zobrist.hashKey ^= Zobrist.pieceKeys[piece, sourceSquare];    // remove piece from source square in hash key
+            Zobrist.hashKey ^= Zobrist.pieceKeys[piece, targetSquare];    // set piece to the target square in hash key
+
             if (capture != 0)
             {
                 int startPiece, endPiece;
@@ -536,6 +540,8 @@ public static class MoveGenerator
                     if (BitboardOperations.GetBit(bitboards[bbPiece], targetSquare))
                     {
                         BitboardOperations.PopBit(ref bitboards[bbPiece], targetSquare);
+
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[bbPiece, targetSquare];
                         break;
                     }
                 }
@@ -543,26 +549,69 @@ public static class MoveGenerator
 
             if (promotedPiece != 0)
             {
-                BitboardOperations.PopBit(ref bitboards[(side == (int)white) ? P : p], targetSquare);
+                if (side == (int)white)
+                {
+                    BitboardOperations.PopBit(ref bitboards[P], targetSquare);
+                    Zobrist.hashKey ^= Zobrist.pieceKeys[P, targetSquare];  // remove pawn from target square in hash key
+                }
+                else
+                {
+                    BitboardOperations.PopBit(ref bitboards[p], targetSquare);
+                    Zobrist.hashKey ^= Zobrist.pieceKeys[p, targetSquare];  // remove pawn from target square in hash key
+                }
 
                 BitboardOperations.SetBit(ref bitboards[promotedPiece], targetSquare);
+                Zobrist.hashKey ^= Zobrist.pieceKeys[promotedPiece, targetSquare];  // add promoted piece to target square in hash key
             }
 
             if (enpass != 0)
             {
+                // erase the pawn depending on side to move
                 if (side == (int)white)
                     BitboardOperations.PopBit(ref bitboards[p], targetSquare + 8);
                 else
                     BitboardOperations.PopBit(ref bitboards[P], targetSquare - 8);
+
+                // white to move
+                if (side == (int)white)
+                {
+                    // remove captured pawn
+                    BitboardOperations.PopBit(ref bitboards[p], targetSquare + 8);
+
+                    // remove pawn from hash key
+                    Zobrist.hashKey ^= Zobrist.pieceKeys[p, targetSquare + 8];
+                }
+
+                // black to move
+                else
+                {
+                    // remove captured pawn
+                    BitboardOperations.PopBit(ref bitboards[P], targetSquare - 8);
+
+                    // remove pawn from hash key
+                    Zobrist.hashKey ^= Zobrist.pieceKeys[P, targetSquare - 8];
+                }
             }
+            if (enPassant != (int)noSquare) Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
 
             enPassant = (int)noSquare;
 
             if (doublePush != 0)
             {
-                enPassant = (side == (int)white)
-                    ? targetSquare + 8
-                    : targetSquare - 8;
+                if (side == (int)white)
+                {
+                    enPassant = targetSquare + 8;
+
+                    // hash enpassant
+                    Zobrist.hashKey ^= Zobrist.enpassantKeys[targetSquare + 8];
+                }
+                else
+                {
+                    enPassant = targetSquare - 8;
+
+                    // hash enpassant
+                    Zobrist.hashKey ^= Zobrist.enpassantKeys[targetSquare - 8];
+                }
             }
 
             if (castling != 0)
@@ -572,29 +621,42 @@ public static class MoveGenerator
                     case g1:
                         BitboardOperations.PopBit(ref bitboards[R], (int)h1);
                         BitboardOperations.SetBit(ref bitboards[R], (int)f1);
+                        // hash rook
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[R, (int)h1];  // remove rook from h1 from hash key
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[R, (int)f1];  // put rook on f1 into a hash key
                         break;
                     case c1:
                         BitboardOperations.PopBit(ref bitboards[R], (int)a1);
                         BitboardOperations.SetBit(ref bitboards[R], (int)d1);
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[R, (int)a1];  // remove rook from a1 from hash key
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[R, (int)d1];  // put rook on d1 into a hash key
                         break;
                     case g8:
                         BitboardOperations.PopBit(ref bitboards[r], (int)h8);
                         BitboardOperations.SetBit(ref bitboards[r], (int)f8);
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)h8];  // remove rook from h8 from hash key
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)f8];  // put rook on f8 into a hash key
                         break;
                     case c8:
                         BitboardOperations.PopBit(ref bitboards[r], (int)a8);
                         BitboardOperations.SetBit(ref bitboards[r], (int)d8);
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)a8];  // remove rook from a1 from hash key
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)d8];  // put rook on d1 into a hash key
                         break;
                 }
             }
+            Zobrist.hashKey ^= Zobrist.castleKeys[castle];  // hash castling
 
             castle &= castlingRights[sourceSquare];
             castle &= castlingRights[targetSquare];
+
+            Zobrist.hashKey ^= Zobrist.castleKeys[castle];  // hash castling
 
             Array.Fill(occupancies, 0UL);
             UpdateOccupancies();
 
             side ^= 1;
+            Zobrist.hashKey ^= Zobrist.sideKey;
 
             int kingSquare = (side == (int)white)
                 ? BitboardOperations.GetLs1bIndex(bitboards[k])
