@@ -9,6 +9,9 @@ public static class Search
     private static int ply;
     // nodes counter
     private static long nodes;
+
+    // public accessor for last node count
+    public static long LastNodeCount => nodes;
     // MAX PLY to reach within the search - to prevent overflow
     private static readonly int maxPly = 64;
 
@@ -123,37 +126,36 @@ public static class Search
             // make sure to make only legal moves
             if (MakeMove(moveList.moves[count], (int)MoveFlag.allMoves) == 0)
             {
-                // skip to next move
-                continue;
+                continue;  // skip to next move
             }
 
-            // increment ply
-            ply++;
+            ply++;  // increment ply
 
             legalMoves++;
 
             int score;
 
+            /*
+            late move reduction (LMR):
+            Core idea: Moves sorted late in the list are probably bad. Search them at reduced depth first.
+            Only re-search at full depth if they surprisingly turn out to be good.
+            */
             if (movesSearched == 0)
             {
-                // full search
+                // Move 1: Always full search (this is our PV candidate)
                 score = -AlphaBeta(-beta, -alpha, depth - 1);
             }
-
-            // late move reduction LMR
             else
             {
                 // improved LMR conditions
                 bool isQuiet = GetMoveCapture(moveList.moves[count]) == 0 && GetMovePromoted(moveList.moves[count]) == 0;
-                int reduction = 0;
-
                 if (movesSearched >= fullDepthMoves &&
                     depth >= reductionLimit &&
                     !inCheck &&
                     isQuiet)
                 {
                     // dynamic reduction based on move count and depth
-                    reduction = 1 + (movesSearched / 6) + (depth / 8);
+                    int reduction = 1 + (movesSearched / 6) + (depth / 8);
                     reduction = Math.Min(reduction, 3); // cap reduction at 3 plies
 
                     // ensure we don't go below depth 1

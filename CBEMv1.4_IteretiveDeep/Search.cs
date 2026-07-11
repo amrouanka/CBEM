@@ -9,6 +9,9 @@ public static class Search
     private static int ply;
     // nodes counter
     private static long nodes;
+
+    // public accessor for last node count
+    public static long LastNodeCount => nodes;
     // MAX PLY to reach within the search (to prevent overflow)
     private static readonly int maxPly = 64;
 
@@ -38,6 +41,34 @@ public static class Search
 
     static readonly int[] pvLength = new int[maxPly];
 
+    /*
+    Why followpv Matters — The Chain Reaction:
+    Consider the PV from the previous iteration was: e2e4 → e7e5 → g1f3
+
+    Depth N iteration starts: followpv = true
+
+    At ply 0 (root):
+    └─ EnablepvScoring finds e2e4 in move list
+        → followpv stays true, scorepv = true
+        → e2e4 gets score 20000, searched FIRST
+
+    At ply 1 (after e2e4):
+        └─ followpv is still true, so EnablepvScoring runs
+        → finds e7e5 in move list
+        → followpv stays true, scorepv = true
+        → e7e5 gets score 20000, searched FIRST
+
+        At ply 2 (after e7e5):
+        └─ followpv is still true, so EnablepvScoring runs
+            → finds g1f3 in move list
+            → followpv stays true, scorepv = true
+
+        At ply 3:
+            └─ followpv is true, but EnablepvScoring finds
+            NO PV move in the move list (PV ends here)
+            → followpv = false  ← STOPS propagating
+            → All remaining nodes searched normally
+    */
     static bool followpv = false, scorepv = false;
 
 
@@ -141,17 +172,25 @@ public static class Search
             legalMoves++;
 
             int score;
+
+            /*
+            Principal Variation Search (PVS) optimization: if foundPv is true,
+            we first search with a narrow window [-alpha-1, -alpha] before doing a full-window search.
+            This saves time when we've already found a good move.
+            */
             if (foundPv)
             {
+                // Null-window search: "I doubt you're better than alpha"
                 score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
                 if (score > alpha && score < beta)
                 {
-                    // we are in a Principal Variation window - search with full window
+                    // Surprise — it IS better! Re-search with full window
                     score = -AlphaBeta(-beta, -alpha, depth - 1);
                 }
             }
             else
             {
+                // Haven't found PV yet — full window search
                 score = -AlphaBeta(-beta, -alpha, depth - 1);
             }
 
@@ -347,7 +386,7 @@ public static class Search
 
     static void EnablepvScoring(MoveList moveList)
     {
-        // disable following PV
+        // Pessimistically assume we've fallen off the PV
         followpv = false;
 
         for (int count = 0; count < moveList.count; count++)
@@ -355,8 +394,9 @@ public static class Search
             // make sure we hit pv move
             if (pvTable[0, ply] == moveList.moves[count])
             {
-                scorepv = true;
-                followpv = true;
+                // The PV move from last iteration is a legal move at this node!
+                scorepv = true;    // ← Tell ScoreMove() to boost this move's score
+                followpv = true;   // ← Keep following the PV into child nodes
             }
         }
     }

@@ -28,7 +28,15 @@ class Program
 
         if (debug)
         {
-            TestNodes(12); // 4.6m
+            // Depth(6) = 145k -> 205k nodes searched
+            // Depth(7) = 331k -> 458k 
+            // Depth(8) = 549k -> 850k 
+            // Depth(9) = 1.5m -> 1.5m 
+            // Depth(10)= 3.3m -> 2.6m 
+            // Depth(11)= 7.9 -> 5.4m 
+            // Depth(12)= 16.9m -> 9m
+            
+            TestNodes(12);
 
             Console.WriteLine("\n\n\n");
         }

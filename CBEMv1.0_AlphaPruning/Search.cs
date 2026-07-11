@@ -15,6 +15,9 @@ public static class Search
     // nodes counter
     private static long nodes;
 
+    // public accessor for last node count
+    public static long LastNodeCount => nodes;
+
     // negamax alpha beta search
     private static int Negamax(int alpha, int beta, int depth)
     {

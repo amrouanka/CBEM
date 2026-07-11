@@ -12,6 +12,9 @@ public static class Search
     // nodes counter
     private static long nodes;
 
+    // public accessor for last node count
+    public static long LastNodeCount => nodes;
+
     // MVV LVA [attacker][victim]
     private static readonly int[,] mvv_lva = new int[,]
     {

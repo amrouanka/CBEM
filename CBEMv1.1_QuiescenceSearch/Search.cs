@@ -12,6 +12,9 @@ public static class Search
     // nodes counter
     private static long nodes;
 
+    // public accessor for last node count
+    public static long LastNodeCount => nodes;
+
     // Main search routine using negamax with alpha-beta pruning
     public static void SearchPosition(int depth)
     {

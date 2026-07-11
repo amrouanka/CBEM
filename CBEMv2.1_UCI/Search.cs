@@ -10,6 +10,9 @@ public static class Search
     private static int ply;
     // nodes counter
     private static long nodes;
+
+    // public accessor for last node count
+    public static long LastNodeCount => nodes;
     // MAX PLY to reach within search - to prevent overflow
     private static readonly int maxPly = 64;
 

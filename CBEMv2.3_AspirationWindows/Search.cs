@@ -148,7 +148,7 @@ public static class Search
     }
 
     // Negamax alpha-beta search with various pruning techniques
-    private static int AlphaBeta(int alpha, int beta, int depth)
+    private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
     {
         // Check time and input periodically
         if ((nodes & 2047) == 0)
@@ -180,14 +180,14 @@ public static class Search
         int legalMoves = 0;
 
         // Null move pruning: try a null move to find easy beta cutoffs
-        if (depth >= 3 && !inCheck && ply > 0)
+        if (depth >= 3 && !inCheck && ply > 0 && allowNullMove)
         {
             BoardState state = CopyBoard();
             side ^= 1;
             enPassant = (int)Square.noSquare;
 
             int R = 2; // Null move reduction depth
-            int score = -AlphaBeta(-beta, -beta + 1, depth - 1 - R);
+            int score = -AlphaBeta(-beta, -beta + 1, depth - 1 - R, false);
 
             TakeBack(state);
 
@@ -195,7 +195,24 @@ public static class Search
                 return beta;
         }
 
-        // Futility pruning: skip nodes that can't improve alpha
+        /*
+        Futility Pruning — Visual Explanation
+        The Horizon Problem It Solves
+
+        depth=1 node, about to reach quiescence:
+
+        Current position evaluation: -400cp (you're down a rook)
+        Alpha (best you've found elsewhere): +50cp
+
+        You're searching moves like: pawn to e4, knight to f3, bishop to c4...
+
+        Question: Can ANY of these quiet moves possibly raise your score to +50?
+
+        -400cp → need to gain 450cp from a single quiet move
+        A pawn move, knight move, or bishop move gains maybe 20-30cp positionally
+
+        IMPOSSIBLE. Skip the whole node.
+        */
         if (depth <= 3 && !inCheck)
         {
             int eval = Evaluation.Evaluate();
