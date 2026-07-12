@@ -60,7 +60,6 @@ public static class Search
 
         int alpha = -50000;
         int beta = 50000;
-        int score = 0;
         int window = 50; // Initial window size (approx 0.5 pawn)
 
         for (int currentDepth = 1; currentDepth <= depth; currentDepth++)
@@ -68,7 +67,7 @@ public static class Search
             followpv = true;
 
             // Perform the search with aspiration windows
-            score = AlphaBeta(alpha, beta, currentDepth);
+            int score = AlphaBeta(alpha, beta, currentDepth);
 
             // If the score falls outside our window, we must re-search
             while (score <= alpha || score >= beta)
@@ -82,7 +81,7 @@ public static class Search
                 if (score >= beta) beta += window;
 
                 // Widen the window for the next attempt if we fail again
-                window += (window / 2);
+                window += window / 2;
 
                 // Re-search with the wider window at the SAME depth
                 score = AlphaBeta(alpha, beta, currentDepth);
@@ -148,7 +147,7 @@ public static class Search
     }
 
     // Negamax alpha-beta search with various pruning techniques
-    private static int AlphaBeta(int alpha, int beta, int depth)
+    private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
     {
         // Check time and input periodically
         if ((nodes & 2047) == 0)
@@ -180,14 +179,14 @@ public static class Search
         int legalMoves = 0;
 
         // Null move pruning: try a null move to find easy beta cutoffs
-        if (depth >= 3 && !inCheck && ply > 0)
+        if (depth >= 3 && !inCheck && ply > 0 && allowNullMove && HasNonPawnMaterial(side))
         {
             BoardState state = CopyBoard();
             side ^= 1;
             enPassant = (int)Square.noSquare;
 
             int R = 2; // Null move reduction depth
-            int score = -AlphaBeta(-beta, -beta + 1, depth - 1 - R);
+            int score = -AlphaBeta(-beta, -beta + 1, depth - 1 - R, false);
 
             TakeBack(state);
 
@@ -195,14 +194,19 @@ public static class Search
                 return beta;
         }
 
-        // Futility pruning: skip nodes that can't improve alpha
-        if (depth <= 3 && !inCheck)
-        {
-            int eval = Evaluation.Evaluate();
-            int futilityMargin = depth * 150;
-            if (eval + futilityMargin <= alpha)
-                return alpha;
-        }
+        // PV Node:      beta - alpha > 1     (wide window, exploring for exact score)
+        // Non-PV Node:  beta - alpha == 1    (null window, just proving move is bad)
+        bool useFutility = depth <= 2 && !inCheck && (beta - alpha == 1);
+        int staticEval = useFutility ? Evaluation.Evaluate() : 0;
+        int futilityMargin = depth == 1 ? 200 : 400;
+        bool canPrune = useFutility && (staticEval + futilityMargin <= alpha);
+        /*
+        canPrune requires ALL of these:
+        ├── depth <= 2          (only near the end)
+        ├── !inCheck            (not when in danger)
+        ├── beta - alpha == 1   (only non-PV nodes)
+        └── staticEval + margin <= alpha   (hopelessly behind in material)
+        */
 
         // Generate and sort moves
         MoveList moveList = new();
@@ -216,6 +220,30 @@ public static class Search
         // Search all moves
         for (int count = 0; count < moveList.count; count++)
         {
+            /*
+            Futility Pruning — Visual Explanation
+            The Horizon Problem It Solves
+
+            depth=1 node, about to reach quiescence:
+
+            Current position evaluation: -400cp (you're down a rook)
+            Alpha (best you've found elsewhere): +50cp
+
+            You're searching moves like: pawn to e4, knight to f3, bishop to c4...
+
+            Question: Can ANY of these quiet moves possibly raise your score to +50?
+
+            -400cp → need to gain 450cp from a single quiet move
+            A pawn move, knight move, or bishop move gains maybe 20-30cp positionally
+
+            IMPOSSIBLE. Skip the whole node.
+            */
+            if (canPrune && movesSearched > 0)
+            {
+                // If its a quiet move, we can prune safely
+                if (GetMoveCapture(moveList.moves[count]) == 0 && GetMovePromoted(moveList.moves[count]) == 0)
+                    continue;
+            }
             BoardState state = CopyBoard();
 
             // Skip illegal moves
@@ -524,6 +552,23 @@ public static class Search
                 scorepv = true;
                 followpv = true;
             }
+        }
+    }
+    private static bool HasNonPawnMaterial(int sideToCheck)
+    {
+        if (sideToCheck == (int)Side.white)
+        {
+            return bitboards[N] != 0 ||
+                bitboards[B] != 0 ||
+                bitboards[R] != 0 ||
+                bitboards[Q] != 0;
+        }
+        else
+        {
+            return bitboards[n] != 0 ||
+                bitboards[b] != 0 ||
+                bitboards[r] != 0 ||
+                bitboards[q] != 0;
         }
     }
 }
