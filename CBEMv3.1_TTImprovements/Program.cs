@@ -26,18 +26,20 @@ class Program
     {
         if (debug)
         {
-            // Depth(6) = 147k -> 79k nodes searched
-            // Depth(7) = 287k -> 127k
-            // Depth(8) = 607k -> 209k
-            // Depth(9) = 1.3m -> 421k
-            // Depth(10)= 2.5m -> 883k
-            // Depth(11)= 4.6m -> 1.6m
-            // Depth(12)= 9.9m -> 2.77m
-            // Depth(13)= 5.05m
-            // Depth(14)= 8.46m
-            // Depth(15)= 15.1m
-            // Depth(16)= 22.7m
+            // 1st: if (inCheck) depth++
+
+            // Depth(12)= 2.77m - 1st: 3.75m
+            // Depth(13)= 5.05m - 1st: 5.75m
+            // Depth(14)= 8.46m - 1st: 10.5m
+            // Depth(15)= 15.1m - 1st: 17.9m
+            // Depth(16)= 22.7m - 1st: 30.8m
             
+            TestNodes(12);
+            TranspositionTable.Clear();
+            TestNodes(13);
+            TranspositionTable.Clear();
+            TestNodes(14);
+            TranspositionTable.Clear();
             TestNodes(15);
             TranspositionTable.Clear();
             TestNodes(16);
