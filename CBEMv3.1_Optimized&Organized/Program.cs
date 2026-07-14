@@ -19,21 +19,29 @@ class Program
     public const string GrunfeldExchange = "rn1q1rk1/pp2ppbp/6p1/2pP4/2P1P1b1/2N5/PP2N1PP/R1BQKB1R w KQ - 1 9";
 
     // Debug mode variable
-    public static bool debug = false;
+    public static bool debug = true;
 
     static void Main()
     {
         if (debug)
         {
             // 1st: if (inCheck) depth++
-            // 2nd
+            // Fixed: 
+            // Fixed Null Move Pruning implementation
+            // Fixed LMR cutting almost all moves regardless good or bad (too aggressive - goes straight to quiescence)
 
-            // Depth(12)= 2.77m - 1st: 3.75m - 2nd: 
-            // Depth(13)= 5.05m - 1st: 5.75m - 2nd: 
-            // Depth(14)= 8.46m - 1st: 10.5m - 2nd: 
-            // Depth(15)= 15.1m - 1st: 17.9m - 2nd: 
-            // Depth(16)= 22.7m - 1st: 30.7m - 2nd: 
-            
+            // Depth(12)= 2.77m - 1st: 3.75m - Fixed: 5.58m
+            // Depth(13)= 5.05m - 1st: 5.75m - Fixed: 10.2m
+            // Depth(14)= 8.46m - 1st: 10.5m - Fixed: 18.0m
+            // Depth(15)= 15.1m - 1st: 17.9m - Fixed: 24.4m
+            // Depth(16)= 22.7m - 1st: 30.7m - Fixed: 40.9m
+
+            // Depth(12)= 5.58m -> 6.53m
+            // Depth(13)= 10.2m -> 12.5m
+            // Depth(14)= 18.0m -> 26.2m
+            // Depth(15)= 24.4m -> 37.8m
+            // Depth(16)= 40.9m -> 55.9m
+
             TestNodes(12);
             TranspositionTable.Clear();
             TestNodes(13);
