@@ -1,5 +1,4 @@
-﻿
-using static MoveFlag;
+﻿using static MoveFlag;
 using static MoveGenerator;
 
 class Program

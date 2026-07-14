@@ -1,173 +1,103 @@
-using System.Runtime.InteropServices;
+using System;
 
 public static class TimeManagement
 {
-    // Time control variables
-    public static bool quit = false;
-    public static int movestogo = 30;
+    // UCI time controls
     public static int movetime = -1;
     public static int time = -1;
     public static int inc = 0;
-    public static int starttime = 0;
-    public static int stoptime = 0;
+    public static int movestogo = 30; // parsed but not really used
+
+    // Search state
     public static bool timeset = false;
     public static bool stopped = false;
+    public static bool quit = false;
 
-    private const int StdInputHandle = -10;
-    private const uint FileTypePipe = 0x0003;
-    private static readonly IntPtr InvalidHandleValue = new(-1);
-    private static bool inputInitialized;
-    private static bool inputIsConsole;
-    private static bool inputIsPipe;
-    private static IntPtr inputHandle;
+    // Timing points
+    public static long starttime = 0;
+    public static long softStopTime = 0; // stop after finished iteration
+    public static long stoptime = 0;     // hard stop inside search
 
-    [DllImport("kernel32.dll")]
-    private static extern IntPtr GetStdHandle(int nStdHandle);
-
-    [DllImport("kernel32.dll")]
-    private static extern uint GetFileType(IntPtr hFile);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool PeekNamedPipe(
-        IntPtr hNamedPipe,
-        IntPtr lpBuffer,
-        uint nBufferSize,
-        out uint lpBytesRead,
-        out uint lpTotalBytesAvail,
-        out uint lpBytesLeftThisMessage);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool GetNumberOfConsoleInputEvents(IntPtr hConsoleInput, out uint lpcNumberOfEvents);
-
-    // get time in milliseconds
-    public static int GetTimeMs()
+    public static long GetTimeMs()
     {
-        return Environment.TickCount;
+        return Environment.TickCount64;
     }
 
-    // check if there's input waiting from STDIN
-    public static bool InputWaiting()
+    public static void ResetForGo()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            if (!Console.IsInputRedirected)
-                return Console.KeyAvailable;
+        movetime = -1;
+        time = -1;
+        inc = 0;
+        movestogo = 30;
 
-            return Console.In.Peek() != -1;
-        }
+        timeset = false;
+        stopped = false;
 
-        if (!inputInitialized)
-        {
-            inputInitialized = true;
-            inputHandle = GetStdHandle(StdInputHandle);
-
-            if (inputHandle != IntPtr.Zero && inputHandle != InvalidHandleValue)
-            {
-                inputIsConsole = GetConsoleMode(inputHandle, out _);
-
-                if (!inputIsConsole)
-                {
-                    uint fileType = GetFileType(inputHandle);
-                    inputIsPipe = fileType == FileTypePipe;
-                }
-            }
-        }
-
-        if (inputHandle == IntPtr.Zero || inputHandle == InvalidHandleValue)
-            return false;
-
-        if (inputIsPipe)
-        {
-            if (!PeekNamedPipe(inputHandle, IntPtr.Zero, 0, out _, out uint bytesAvail, out _))
-                return false;
-
-            return bytesAvail > 0;
-        }
-
-        if (!inputIsConsole)
-            return Console.In.Peek() != -1;
-
-        if (!GetNumberOfConsoleInputEvents(inputHandle, out uint eventsCount))
-            return false;
-
-        return eventsCount > 1;
+        starttime = 0;
+        softStopTime = 0;
+        stoptime = 0;
     }
 
-    // read GUI/user input
-    public static void ReadInput()
+    public static void StartInfiniteSearch()
     {
-        if (!InputWaiting())
-            return;
-
-        if (OperatingSystem.IsWindows() && inputIsPipe)
-        {
-            if (!PeekNamedPipe(inputHandle, IntPtr.Zero, 0, out _, out uint bytesAvail, out _))
-                return;
-
-            if (bytesAvail == 0)
-                return;
-
-            int peekLength = (int)Math.Min(bytesAvail, 512u);
-            byte[] buffer = new byte[peekLength];
-            GCHandle handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
-
-            try
-            {
-                if (!PeekNamedPipe(inputHandle, handle.AddrOfPinnedObject(), (uint)peekLength, out uint bytesRead, out _, out _))
-                    return;
-
-                bool hasNewline = false;
-                for (int i = 0; i < bytesRead; i++)
-                {
-                    if (buffer[i] == (byte)'\n')
-                    {
-                        hasNewline = true;
-                        break;
-                    }
-                }
-
-                if (!hasNewline)
-                    return;
-            }
-            finally
-            {
-                handle.Free();
-            }
-        }
-
-        stopped = true;
-
-        string? input = Console.ReadLine();
-        if (string.IsNullOrEmpty(input))
-            return;
-
-        input = input.Trim();
-
-        if (input.StartsWith("quit"))
-        {
-            quit = true;
-            stopped = true;
-        }
-        else if (input.StartsWith("stop"))
-        {
-            stopped = true;
-        }
+        starttime = GetTimeMs();
+        timeset = false;
+        stopped = false;
+        softStopTime = 0;
+        stoptime = 0;
     }
 
-    // a bridge function to interact between search and GUI input
+    public static void StartMoveTimeSearch(int moveTimeMs)
+    {
+        starttime = GetTimeMs();
+        timeset = true;
+        stopped = false;
+
+        int spend = Math.Max(1, moveTimeMs - 20);
+
+        softStopTime = starttime + spend;
+        stoptime = starttime + spend;
+    }
+
+    // Very simple and conservative clock management
+    public static void StartClockSearch(int remainingMs, int incrementMs)
+    {
+        starttime = GetTimeMs();
+        timeset = true;
+        stopped = false;
+
+        remainingMs = Math.Max(1, remainingMs);
+        incrementMs = Math.Max(0, incrementMs);
+
+        // Conservative formula:
+        // spend a small fraction of remaining time + half increment
+        int spend = remainingMs / 40 + incrementMs / 2;
+
+        // Never think too little
+        spend = Math.Max(10, spend);
+
+        // Never spend too much on one move
+        spend = Math.Min(spend, remainingMs / 8);
+
+        // Emergency low-time mode
+        if (remainingMs < 2000)
+            spend = Math.Min(spend, Math.Max(10, remainingMs / 5));
+
+        // Small safety margin
+        spend = Math.Min(spend, Math.Max(1, remainingMs - 30));
+
+        softStopTime = starttime + spend;
+        stoptime = softStopTime + 10; // tiny hard-stop cushion
+    }
+
     public static void Communicate()
     {
-        // if time is up break here
-        if (timeset && GetTimeMs() > stoptime)
-        {
-            // tell engine to stop calculating
+        if (timeset && GetTimeMs() >= stoptime)
             stopped = true;
-        }
+    }
 
-        // read GUI input
-        ReadInput();
+    public static bool ShouldStopAfterIteration()
+    {
+        return timeset && GetTimeMs() >= softStopTime;
     }
 }

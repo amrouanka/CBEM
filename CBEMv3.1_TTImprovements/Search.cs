@@ -1,173 +1,162 @@
-using System.Drawing;
-using System.Runtime.InteropServices;
 using static Board;
 using static MoveEncoding;
 using static MoveGenerator;
 
 public static class Search
 {
-    // Current search depth (half-moves from root)
-    private static int ply;
-    // Total nodes searched in current iteration
+    // ─────────────────────────────────────────────
+    //  Constants
+    // ─────────────────────────────────────────────
+    private const int MaxPly        = 64;
+    private const int Infinity      = 50000;
+    private const int MateScore     = 49000;
+
+    // LMR thresholds
+    private const int FullDepthMoves = 2;
+    private const int ReductionLimit = 3;
+
+    // ─────────────────────────────────────────────
+    //  Search state
+    // ─────────────────────────────────────────────
+    private static int  ply;
     private static long nodes;
-    // Public property to access the last node count
-    public static long LastNodeCount => nodes;
-    // Maximum search depth to prevent array overflow
-    private static readonly int maxPly = 64;
+    public  static long LastNodeCount => nodes;
 
-    // Killer moves: [2 slots][ply] - stores non-capture moves that caused beta cutoffs
-    static readonly int[,] killerMoves = new int[2, maxPly];
-    // History moves: [piece type][square] - scores quiet moves based on past success
-    static readonly int[,] historyMoves = new int[12, 64];
+    // ─────────────────────────────────────────────
+    //  Move ordering tables
+    // ─────────────────────────────────────────────
+    private static readonly int[,] killerMoves  = new int[2, MaxPly];
+    private static readonly int[,] historyMoves = new int[12, 64];
 
-    // Principal Variation table: [ply][move_index] - stores best moves at each depth
-    static readonly int[,] pvTable = new int[maxPly, maxPly];
-
-    // PV length array: stores length of PV line from each ply
-    static readonly int[] pvLength = new int[maxPly];
-
-    // PV tracking flags
-    static bool followpv = false, scorepv = false;
-
-    // LMR parameters: first N moves searched full depth, minimum depth for reduction
-    static readonly int fullDepthMoves = 2;
-    static readonly int reductionLimit = 3;
-
-    // REPETITION TABLE HISTORY
-    // Stores hash keys of all positions in the current game
-    private static ulong[] repetitionTable = new ulong[1024]; // Max 1024 half-moves
-    public static int repetitionIndex = 0;
-
-
-    // MVV-LVA: [attacker][victim] - Most Valuable Victim, Least Valuable Attacker
-    private static readonly int[,] mvv_lva = new int[,]
+    // MVV-LVA [attacker][victim]
+    private static readonly int[,] mvvLva = new int[,]
     {
-        {105, 205, 305, 405, 505, 605},
-        {104, 204, 304, 404, 504, 604},
-        {103, 203, 303, 403, 503, 603},
-        {102, 202, 302, 402, 502, 602},
-        {101, 201, 301, 401, 501, 601},
-        {100, 200, 300, 400, 500, 600}
+        { 105, 205, 305, 405, 505, 605 },
+        { 104, 204, 304, 404, 504, 604 },
+        { 103, 203, 303, 403, 503, 603 },
+        { 102, 202, 302, 402, 502, 602 },
+        { 101, 201, 301, 401, 501, 601 },
+        { 100, 200, 300, 400, 500, 600 },
     };
 
-    // Call this whenever a move is made in the GAME (not during search)
+    // ─────────────────────────────────────────────
+    //  Principal Variation
+    // ─────────────────────────────────────────────
+    private static readonly int[,] pvTable  = new int[MaxPly, MaxPly];
+    private static readonly int[]  pvLength = new int[MaxPly];
+    private static bool followPv;
+    private static bool scorePv;
+
+    // ─────────────────────────────────────────────
+    //  Repetition detection
+    // ─────────────────────────────────────────────
+    private static readonly ulong[] repetitionTable = new ulong[1024];
+    public  static int repetitionIndex = 0;
+
     public static void AddToRepetitionHistory(ulong hashKey)
     {
         if (repetitionIndex < repetitionTable.Length)
             repetitionTable[repetitionIndex++] = hashKey;
     }
 
-    // Call this when taking back a game move
     public static void RemoveFromRepetitionHistory()
     {
         if (repetitionIndex > 0)
             repetitionIndex--;
     }
 
-    // Check if current position has occurred before
     private static bool IsRepetition()
     {
-        // Look backwards through game history
-        // Stop at repetitionIndex (the game moves, not search moves)
-        // Start at repetitionIndex - 2 to skip the current position which is stored at repetitionIndex - 1
         for (int i = repetitionIndex - 2; i >= 0; i--)
-        {
             if (repetitionTable[i] == Zobrist.hashKey)
-                return true; // Position seen before = draw!
-            // Strict rule:  3 occurrences = draw (official chess rules)
-            // Engine rule:  2 occurrences = draw (practical optimization)
-        }
+                return true;
         return false;
     }
 
-    // Main search entry point with iterative deepening and aspiration windows
+    // ═════════════════════════════════════════════
+    //  SearchPosition  –  iterative deepening entry
+    // ═════════════════════════════════════════════
     public static void SearchPosition(int depth)
     {
-        nodes = 0;
-        followpv = false;
-        scorepv = false;
+        // Reset search state
+        nodes    = 0;
+        ply      = 0;
+        followPv = false;
+        scorePv  = false;
         TimeManagement.stopped = false;
 
         Array.Clear(pvTable);
         Array.Clear(killerMoves);
         Array.Clear(historyMoves);
 
-        int alpha = -50000;
-        int beta = 50000;
-        int window = 50; // Initial window size (approx 0.5 pawn)
+        int alpha  = -Infinity;
+        int beta   =  Infinity;
+        int window = 50;
+
+        int bestMove      = 0;
+        int bestScore     = 0;
+        int completedDepth = 0;
 
         for (int currentDepth = 1; currentDepth <= depth; currentDepth++)
         {
-            followpv = true;
+            if (TimeManagement.ShouldStopAfterIteration()) break;
 
-            // Perform the search with aspiration windows
+            followPv = true;
+
             int score = AlphaBeta(alpha, beta, currentDepth);
 
-            // If the score falls outside our window, we must re-search
-            while (score <= alpha || score >= beta)
+            // Aspiration window re-search
+            while ((score <= alpha || score >= beta) && !TimeManagement.stopped)
             {
-                // If we fail low (score <= alpha), the score is worse than expected. 
-                // We lower alpha (expand search downwards).
                 if (score <= alpha) alpha -= window;
-
-                // If we fail high (score >= beta), the score is better than expected.
-                // We raise beta (expand search upwards).
-                if (score >= beta) beta += window;
-
-                // Widen the window for the next attempt if we fail again
+                if (score >= beta)  beta  += window;
                 window += window / 2;
-
-                // Re-search with the wider window at the SAME depth
                 score = AlphaBeta(alpha, beta, currentDepth);
-
-                // Safety break for time management
-                if (TimeManagement.stopped) break;
             }
 
-            // Check BEFORE using the score
             if (TimeManagement.stopped) break;
 
-            // Narrow the window for the next depth iteration around the found score
-            alpha = score - 50;
-            beta = score + 50;
-            window = 50; // Reset window expansion
+            // Prepare window for next depth
+            alpha  = score - 50;
+            beta   = score + 50;
+            window = 50;
 
-            // Output search info in UCI format
+            // Commit completed iteration
+            completedDepth = currentDepth;
+            bestScore      = score;
+            if (pvTable[0, 0] != 0) bestMove = pvTable[0, 0];
+
+            // UCI info
             if (!Program.debug)
             {
                 Console.Write($"info score cp {score} depth {currentDepth} nodes {nodes} pv ");
-                for (int count = 0; count < pvLength[0]; count++)
-                {
-                    Console.Write($"{GetMove(pvTable[0, count])} ");
-                }
+                for (int i = 0; i < pvLength[0]; i++)
+                    Console.Write($"{GetMove(pvTable[0, i])} ");
                 Console.WriteLine();
             }
+
+            if (TimeManagement.ShouldStopAfterIteration()) break;
         }
 
-        // Get best move from PV table or find first legal move
-        int bestMove = pvTable[0, 0];
+        // Fallback: if no depth finished, pick first legal move
         if (bestMove == 0)
         {
-            MoveList moveList = new();
+            var moveList = new MoveList();
             GenerateMoves(ref moveList);
 
-            // Find first legal move
             for (int i = 0; i < moveList.count; i++)
             {
                 BoardState state = CopyBoard();
-
                 if (MakeMove(moveList.moves[i], (int)MoveFlag.allMoves) == 0)
                 {
                     TakeBack(state);
                     continue;
                 }
-
                 TakeBack(state);
                 bestMove = moveList.moves[i];
                 break;
             }
 
-            // No legal moves available
             if (bestMove == 0)
             {
                 Console.WriteLine("bestmove 0000");
@@ -175,146 +164,123 @@ public static class Search
             }
         }
 
-        // Output best move in UCI format
         Console.Write($"bestmove {GetMove(bestMove)}");
-        if (Program.debug) Console.Write($" | depth {depth} nodes {nodes}");
+        if (Program.debug)
+            Console.Write($" | depth {completedDepth} score {bestScore} nodes {nodes}");
         Console.WriteLine();
     }
 
-    // Negamax alpha-beta search with various pruning techniques
+    // ═════════════════════════════════════════════
+    //  AlphaBeta
+    // ═════════════════════════════════════════════
     private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
     {
-        // Check time and input periodically
-        if ((nodes & 511) == 0)
-            TimeManagement.Communicate();
+        // ── Time / node housekeeping ──────────────
+        if ((nodes & 2047) == 0) TimeManagement.Communicate();
+        if (TimeManagement.stopped)  return 0;
 
-        // Stop search if time is up
-        if (TimeManagement.stopped)
-            return 0;
-
-        // Initialize PV length for current ply
         pvLength[ply] = ply;
 
-        // THREEFOLD REPETITION CHECK
-        if (ply > 0 && IsRepetition())
-            return 0; // Draw score
+        // ── Draw detection ────────────────────────
+        if (ply > 0 && IsRepetition()) return 0;
 
-        // Leaf node: switch to quiescence search
-        if (depth == 0)
-            return Quiescence(alpha, beta);
+        // ── Quiescence at horizon ─────────────────
+        if (depth <= 0) return Quiescence(alpha, beta);
 
-        // Prevent array overflow at maximum depth
-        if (ply > maxPly - 1)
-            return Evaluation.Evaluate();
+        // ── Depth safety ──────────────────────────
+        if (ply >= MaxPly - 1) return Evaluation.Evaluate();
 
         nodes++;
 
-        // TRANSPOSITION TABLE PROBE - Do this EARLY, before anything else!
+        // ── Transposition table probe ─────────────
         bool pvNode = (beta - alpha) > 1;
-        int ttMove = 0;
-        int ttScore = TranspositionTable.Probe(
+        int  ttMove = 0;
+        int  ttScore = TranspositionTable.Probe(
             Zobrist.hashKey, depth, alpha, beta, ply, out ttMove);
-        
-        // If we found a usable score AND we're not at the PV Node
-        // (At PV nodes we want exact scores for PV exactration)
+
         if (ttScore != TranspositionTable.NoScore && !pvNode)
-        {
-            return ttScore; // Return cached result - skip the search
-        }
+            return ttScore;
 
-        // Check if current side is in check
-        int kingSquare = (side == (int)Side.white) ?
-            BitboardOperations.GetLs1bIndex(bitboards[K]) :
-            BitboardOperations.GetLs1bIndex(bitboards[k]);
-        bool inCheck = PieceAttacks.IsSquareAttacked(kingSquare, side ^ 1);
+        // ── In-check detection ────────────────────
+        int  kSq    = (side == (int)Side.white)
+                        ? BitboardOperations.GetLs1bIndex(bitboards[K])
+                        : BitboardOperations.GetLs1bIndex(bitboards[k]);
+        bool inCheck = PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
 
-        // ✅ ADD THIS: extend search when in check
-        if (inCheck) depth++;
+        // ── Check extension ───────────────────────
+        // Extend search by 1 ply when the side to move is in check.
+        // The ply guard prevents explosions in long check sequences.
+        int extension = (inCheck && ply < MaxPly - 10) ? 1 : 0;
+        depth += extension;
 
-        int legalMoves = 0;
+        // ── Reverse futility pruning ──────────────
+        // If static eval beats beta by a large margin we can prune.
+        // if (depth <= 3 && !inCheck && !pvNode && ply > 0)
+        // {
+        //     int rfpEval = Evaluation.Evaluate();
+        //     if (rfpEval - 120 * depth >= beta)
+        //         return beta;
+        // }
 
-        // Null move pruning: try a null move to find easy beta cutoffs
+        // ── Null move pruning ─────────────────────
         if (depth >= 3 && !inCheck && ply > 0 && allowNullMove && HasNonPawnMaterial(side))
         {
-            BoardState state = CopyBoard();
+            BoardState nmState = CopyBoard();
 
             Zobrist.hashKey ^= Zobrist.sideKey;
             side ^= 1;
-
             if (enPassant != (int)Square.noSquare)
             {
                 Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
                 enPassant = (int)Square.noSquare;
             }
 
-            int R = 2; // Null move reduction depth
-            int score = -AlphaBeta(-beta, -beta + 1, depth - 1 - R, false);
+            // int R = 2 + depth / 4;
+            // if (R > depth - 1) R = depth - 1;
+            int R = 2;
 
-            TakeBack(state);
+            int nmScore = -AlphaBeta(-beta, -beta + 1, depth - 1 - R, false);
+            TakeBack(nmState);
 
-            if (score >= beta)
-                return beta;
+            if (nmScore >= beta) return beta;
         }
 
-        // PV Node:      beta - alpha > 1     (wide window, exploring for exact score)
-        // Non-PV Node:  beta - alpha == 1    (null window, just proving move is bad)
-        bool useFutility = depth <= 2 && !inCheck && (beta - alpha == 1);
-        int staticEval = useFutility ? Evaluation.Evaluate() : 0;
-        int futilityMargin = depth == 1 ? 200 : 400;
-        bool canPrune = useFutility && (staticEval + futilityMargin <= alpha);
-        /*
-        canPrune requires ALL of these:
-        ├── depth <= 2          (only near the end)
-        ├── !inCheck            (not when in danger)
-        ├── beta - alpha == 1   (only non-PV nodes)
-        └── staticEval + margin <= alpha   (hopelessly behind in material)
-        */
+        // ── Futility pruning setup ────────────────
+        bool futilityOk = depth <= 2 && !inCheck && !pvNode;
+        int  staticEval  = futilityOk ? Evaluation.Evaluate() : 0;
+        int  futMargin   = depth == 1 ? 200 : 400;
+        bool canPrune    = futilityOk && (staticEval + futMargin <= alpha);
 
-        // Generate and sort moves
-        MoveList moveList = new();
+        // ── Move generation & ordering ────────────
+        var moveList = new MoveList();
         GenerateMoves(ref moveList);
 
-        if (followpv) EnablepvScoring(moveList);
-
-        // USE TT MOVE FOR ORDERING - Score the TT move highest!
+        if (followPv) EnablePvScoring(moveList);
         SortMoves(moveList, ttMove);
 
         int movesSearched = 0;
-        int bestScore = -50000;     // Track best score for TT storage
-        int bestMove = 0;           // Track best move for TT storage
-        int originalAlpha = alpha;  // Remember original alpha for TT flag
+        int bestScore     = -Infinity;
+        int bestMove      = 0;
+        int originalAlpha = alpha;
+        int legalMoves    = 0;
 
-        // Search all moves
-        for (int count = 0; count < moveList.count; count++)
+        // ── Main move loop ────────────────────────
+        for (int i = 0; i < moveList.count; i++)
         {
-            /*
-            Futility Pruning — Visual Explanation
-            The Horizon Problem It Solves
+            int move    = moveList.moves[i];
+            bool isQuiet = GetMoveCapture(move) == 0 && GetMovePromoted(move) == 0;
 
-            depth=1 node, about to reach quiescence:
+            // Futility pruning: skip hopeless quiet moves
+            if (canPrune && movesSearched > 0 && isQuiet)
+                continue;
 
-            Current position evaluation: -400cp (you're down a rook)
-            Alpha (best you've found elsewhere): +50cp
+            // Late move pruning: skip quiet moves beyond threshold
+            // if (depth <= 3 && !inCheck && !pvNode &&
+            //     movesSearched >= 3 + depth * 2 && isQuiet)
+            //     continue;
 
-            You're searching moves like: pawn to e4, knight to f3, bishop to c4...
-
-            Question: Can ANY of these quiet moves possibly raise your score to +50?
-
-            -400cp → need to gain 450cp from a single quiet move
-            A pawn move, knight move, or bishop move gains maybe 20-30cp positionally
-
-            IMPOSSIBLE. Skip the whole node.
-            */
-            if (canPrune && movesSearched > 0)
-            {
-                // If its a quiet move, we can prune safely
-                if (GetMoveCapture(moveList.moves[count]) == 0 && GetMovePromoted(moveList.moves[count]) == 0)
-                    continue;
-            }
             BoardState state = CopyBoard();
-
-            // Skip illegal moves
-            if (MakeMove(moveList.moves[count], (int)MoveFlag.allMoves) == 0)
+            if (MakeMove(move, (int)MoveFlag.allMoves) == 0)
             {
                 TakeBack(state);
                 continue;
@@ -325,184 +291,157 @@ public static class Search
 
             int score;
 
-            // First move: full window search
+            // ── First move: full window ───────────
             if (movesSearched == 0)
             {
                 score = -AlphaBeta(-beta, -alpha, depth - 1);
             }
-            // Later moves: try late move reduction
+            // ── Later moves: LMR + PVS ────────────
             else
             {
-                bool isQuiet = GetMoveCapture(moveList.moves[count]) == 0 && GetMovePromoted(moveList.moves[count]) == 0;
-
-                // Apply LMR to quiet moves
-                if (movesSearched >= fullDepthMoves &&
-                    depth >= reductionLimit &&
-                    !inCheck &&
+                // Late Move Reduction
+                if (movesSearched >= FullDepthMoves &&
+                    depth >= ReductionLimit         &&
+                    !inCheck                        &&
                     isQuiet)
                 {
+                    // Check if move gives check (don't reduce checking moves)
+                    // int oppKSq = (side == (int)Side.white)
+                    //     ? BitboardOperations.GetLs1bIndex(bitboards[K])
+                    //     : BitboardOperations.GetLs1bIndex(bitboards[k]);
+                    // bool givesCheck = PieceAttacks.IsSquareAttacked(oppKSq, side ^ 1);
+
+                    // if (!givesCheck)
+                    // {
+                    //     int reduction = 1;
+                    //     if (movesSearched >= 6)  reduction++;
+                    //     if (movesSearched >= 12) reduction++;
+                    //     if (depth >= 6)          reduction++;
+                    //     if (depth >= 12)         reduction++;
+                    //     reduction = Math.Clamp(reduction, 1, depth - 2);
+
+                    //     score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction);
+                    // }
+                    // else
+                    // {
+                    //     score = alpha + 1; // skip reduction, fall through to PVS
+                    // }
                     int reduction = 1 + (movesSearched / 2) + (depth / 3);
                     reduction = Math.Min(reduction, 6);
                     int reducedDepth = Math.Max(1, depth - reduction - 1);
                     score = -AlphaBeta(-alpha - 1, -alpha, reducedDepth);
                 }
-                else score = alpha + 1;
+                else
+                {
+                    score = alpha + 1; // force PVS narrow-window search
+                }
 
-                // Principal Variation Search (PVS)
+                // PVS: narrow window re-search
                 if (score > alpha)
                 {
-                    // Research with narrow window
                     score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
 
-                    // If move is better than alpha but less than beta, research with full window
+                    // Full window re-search if the narrow search raised alpha
                     if (score > alpha && score < beta)
-                    {
                         score = -AlphaBeta(-beta, -alpha, depth - 1);
-                    }
                 }
             }
 
             ply--;
             TakeBack(state);
 
-            if (TimeManagement.stopped == true)
-                return 0;
+            if (TimeManagement.stopped) return 0;
 
             movesSearched++;
 
-            // Track best move and score for TT storage
+            // Track best
             if (score > bestScore)
             {
                 bestScore = score;
-                bestMove  = moveList.moves[count];
+                bestMove  = move;
             }
 
-            // Beta cutoff: move is too good for opponent
+            // ── Beta cutoff ───────────────────────
             if (score >= beta)
             {
-                // Store as killer move for future ordering
-                if (GetMoveCapture(moveList.moves[count]) == 0)
+                if (isQuiet)
                 {
                     killerMoves[1, ply] = killerMoves[0, ply];
-                    killerMoves[0, ply] = moveList.moves[count];
+                    killerMoves[0, ply] = move;
                 }
 
-                // STORE BETA CUTOFF in TT
                 TranspositionTable.Store(
                     Zobrist.hashKey, depth, beta, bestMove, TTFlag.Beta, ply);
 
                 return beta;
             }
 
-            // Alpha improvement: found better move
+            // ── Alpha improvement ─────────────────
             if (score > alpha)
             {
-                // Update history score for quiet moves
-                if (GetMoveCapture(moveList.moves[count]) == 0)
-                {
-                    historyMoves[GetMovePiece(moveList.moves[count]),
-                                 GetMoveTarget(moveList.moves[count])] += depth;
-                }
+                if (isQuiet)
+                    historyMoves[GetMovePiece(move), GetMoveTarget(move)] += depth;
 
                 alpha = score;
 
-                // Store move in PV table
-                pvTable[ply, ply] = moveList.moves[count];
-
-                // Copy PV from child ply into current ply
-                for (int nextPly = ply + 1; nextPly < pvLength[ply + 1]; nextPly++)
-                    pvTable[ply, nextPly] = pvTable[ply + 1, nextPly];
-
-                // Update PV length
+                pvTable[ply, ply] = move;
+                for (int next = ply + 1; next < pvLength[ply + 1]; next++)
+                    pvTable[ply, next] = pvTable[ply + 1, next];
                 pvLength[ply] = pvLength[ply + 1];
             }
         }
 
-        // Check for checkmate or stalemate
+        // ── Checkmate / stalemate ─────────────────
         if (legalMoves == 0)
-        {
-            if (inCheck)
-            {
-                // Checkmate: negative score based on distance to mate
-                return -49000 + ply;
-            }
-            else
-            {
-                // Stalemate: draw score
-                return 0;
-            }
-        }
+            return inCheck ? -MateScore + ply : 0;
 
-        // STORE RESULT IN TT
-        TTFlag flag = (alpha <= originalAlpha) ? TTFlag.Alpha : TTFlag.Exact;
-        // If score >= beta ever happened, we returned beta EARLY
+        // ── Store in TT ───────────────────────────
+        TTFlag flag = alpha <= originalAlpha ? TTFlag.Alpha : TTFlag.Exact;
+        TranspositionTable.Store(Zobrist.hashKey, depth, alpha, bestMove, flag, ply);
 
-        TranspositionTable.Store(
-            Zobrist.hashKey, depth, alpha, bestMove, flag, ply);
-
-        // Return best score found
         return alpha;
     }
 
-    // Quiescence search: resolves captures at leaf nodes to avoid horizon effect
+    // ═════════════════════════════════════════════
+    //  Quiescence
+    // ═════════════════════════════════════════════
     public static int Quiescence(int alpha, int beta)
     {
-        // Check time and input periodically
-        if ((nodes & 511) == 0)
-            TimeManagement.Communicate();
-
-        // Stop search if time is up
-        if (TimeManagement.stopped)
-            return 0;
+        if ((nodes & 2047) == 0) TimeManagement.Communicate();
+        if (TimeManagement.stopped) return 0;
 
         nodes++;
 
-        int evaluation = Evaluation.Evaluate();
+        int eval = Evaluation.Evaluate();
 
-        // Beta cutoff
-        if (evaluation >= beta)
-            return beta;
+        if (eval >= beta) return beta;
+        if (eval > alpha) alpha = eval;
 
-        // Alpha improvement
-        if (evaluation > alpha)
-            alpha = evaluation;
+        int  kSq     = (side == (int)Side.white)
+                         ? BitboardOperations.GetLs1bIndex(bitboards[K])
+                         : BitboardOperations.GetLs1bIndex(bitboards[k]);
+        bool inCheck = PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
 
-        // Check if in check (need all moves, not just captures)
-        int kingSquare = (side == (int)Side.white) ?
-            BitboardOperations.GetLs1bIndex(bitboards[K]) :
-            BitboardOperations.GetLs1bIndex(bitboards[k]);
-        bool inCheck = PieceAttacks.IsSquareAttacked(kingSquare, side ^ 1);
-
-        // Generate moves: all if in check, only captures otherwise
-        MoveList moveList = new();
-        if (inCheck)
-        {
-            GenerateMoves(ref moveList);
-        }
-        else
-        {
-            GenerateCaptureMoves(ref moveList);
-        }
+        var moveList = new MoveList();
+        if (inCheck) GenerateMoves(ref moveList);
+        else         GenerateCaptureMoves(ref moveList);
 
         SortMoves(moveList);
 
-        // Search all captures
-        for (int count = 0; count < moveList.count; count++)
+        for (int i = 0; i < moveList.count; i++)
         {
-            int move = moveList.moves[count];
+            int move = moveList.moves[i];
 
-            // Delta pruning: skip captures that can't improve alpha
-            int targetSquare = GetMoveTarget(move);
-            int capturedPiece = GetPieceAtSquare(targetSquare);
-            int captureValue = GetPieceValue(capturedPiece);
-            int promotionValue = (GetMovePromoted(move) != 0) ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
-
-            if (evaluation + captureValue + promotionValue + 10 < alpha)
-                continue;
+            // Delta pruning
+            // if (!inCheck)
+            // {
+                int capVal  = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
+                int promoVal = GetMovePromoted(move) != 0
+                               ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
+                if (eval + capVal + promoVal + 10 < alpha) continue;
+            // }
 
             BoardState state = CopyBoard();
-
-            // Skip illegal moves
             if (MakeMove(move, (int)MoveFlag.allMoves) == 0)
             {
                 TakeBack(state);
@@ -512,154 +451,117 @@ public static class Search
             ply++;
             int score = -Quiescence(-beta, -alpha);
             ply--;
-
             TakeBack(state);
 
-            if (TimeManagement.stopped == true)
-                return 0;
+            if (TimeManagement.stopped) return 0;
 
-            // Beta cutoff
-            if (score >= beta)
-                return beta;
-
-            // Alpha improvement
-            if (score > alpha)
-                alpha = score;
+            if (score >= beta) return beta;
+            if (score > alpha) alpha = score;
         }
 
         return alpha;
     }
 
-    // Sort moves by score using insertion sort (efficient for small lists)
+    // ═════════════════════════════════════════════
+    //  Move ordering
+    // ═════════════════════════════════════════════
     private static void SortMoves(MoveList moveList, int ttMove = 0)
     {
-        // Score all moves first
         for (int i = 0; i < moveList.count; i++)
             moveList.scores[i] = ScoreMove(moveList.moves[i], ttMove);
 
-        // Insertion sort by score (descending)
+        // Insertion sort descending
         for (int i = 1; i < moveList.count; i++)
         {
-            int keyMove = moveList.moves[i];
-            int keyScore = moveList.scores[i];
-            int j = i - 1;
-
-            while (j >= 0 && moveList.scores[j] < keyScore)
+            int mv = moveList.moves[i];
+            int sc = moveList.scores[i];
+            int j  = i - 1;
+            while (j >= 0 && moveList.scores[j] < sc)
             {
-                moveList.moves[j + 1] = moveList.moves[j];
+                moveList.moves[j + 1]  = moveList.moves[j];
                 moveList.scores[j + 1] = moveList.scores[j];
                 j--;
             }
-            moveList.moves[j + 1] = keyMove;
-            moveList.scores[j + 1] = keyScore;
+            moveList.moves[j + 1]  = mv;
+            moveList.scores[j + 1] = sc;
         }
     }
 
-    // Score moves for ordering: PV moves first, then captures, then quiet moves
     private static int ScoreMove(int move, int ttMove = 0)
     {
-        // TT MOVE gets the absolute highest priority!
-        if (move == ttMove)
-            return 30000;
+        // TT move (highest priority)
+        if (move == ttMove) return 30000;
 
-        // PV move (second highest priority)
-        if (scorepv)
+        // PV move
+        if (scorePv && pvTable[0, ply] == move)
         {
-            if (pvTable[0, ply] == move)
-            {
-                scorepv = false;
-                return 20000; // Highest score for PV move
-            }
+            scorePv = false;
+            return 20000;
         }
 
-        // Capture moves: score by MVV-LVA
+        // Captures: MVV-LVA
         if (GetMoveCapture(move) != 0)
         {
-            int targetSquare = GetMoveTarget(move);
-            int targetPiece = GetPieceAtSquare(targetSquare);
-            return mvv_lva[GetMovePiece(move) % 6, targetPiece % 6] + 10000;
+            int victim = GetPieceAtSquare(GetMoveTarget(move));
+            return mvvLva[GetMovePiece(move) % 6, victim % 6] + 10000;
         }
-        // Quiet moves: score by killer moves and history
-        else
-        {
-            if (killerMoves[0, ply] == move)
-                return 9000; // First killer move
-            else if (killerMoves[1, ply] == move)
-                return 8000; // Second killer move
-            else
-                return historyMoves[GetMovePiece(move), GetMoveTarget(move)]; // History score
-        }
+
+        // Quiet: killers then history
+        if (killerMoves[0, ply] == move) return 9000;
+        if (killerMoves[1, ply] == move) return 8000;
+        return historyMoves[GetMovePiece(move), GetMoveTarget(move)];
     }
 
-    // Get piece value for delta pruning and move scoring
-    private static int GetPieceValue(int piece)
+    private static void EnablePvScoring(MoveList moveList)
     {
-        return piece switch
+        followPv = false;
+        for (int i = 0; i < moveList.count; i++)
         {
-            P or p => 100,  // Pawn
-            N or n => 320,  // Knight
-            B or b => 330,  // Bishop
-            R or r => 500,  // Rook
-            Q or q => 900,  // Queen
-            K or k => 20000, // King
-            _ => 0
-        };
+            if (pvTable[0, ply] == moveList.moves[i])
+            {
+                scorePv  = true;
+                followPv = true;
+                return;
+            }
+        }
     }
 
-    // Get piece at specific square without bitboard iteration
+    // ═════════════════════════════════════════════
+    //  Helpers
+    // ═════════════════════════════════════════════
+    private static int GetPieceValue(int piece) => piece switch
+    {
+        P or p => 100,
+        N or n => 320,
+        B or b => 330,
+        R or r => 500,
+        Q or q => 900,
+        K or k => 20000,
+        _       => 0
+    };
+
     private static int GetPieceAtSquare(int square)
     {
         ulong mask = 1UL << square;
-
-        // Check white pieces
         if ((bitboards[P] & mask) != 0) return P;
         if ((bitboards[N] & mask) != 0) return N;
         if ((bitboards[B] & mask) != 0) return B;
         if ((bitboards[R] & mask) != 0) return R;
         if ((bitboards[Q] & mask) != 0) return Q;
         if ((bitboards[K] & mask) != 0) return K;
-
-        // Check black pieces
         if ((bitboards[p] & mask) != 0) return p;
         if ((bitboards[n] & mask) != 0) return n;
         if ((bitboards[b] & mask) != 0) return b;
         if ((bitboards[r] & mask) != 0) return r;
         if ((bitboards[q] & mask) != 0) return q;
         if ((bitboards[k] & mask) != 0) return k;
-
-        return 0; // Empty square
+        return 0;
     }
 
-    // Enable PV move scoring for current ply
-    static void EnablepvScoring(MoveList moveList)
-    {
-        followpv = false;
-
-        // Find PV move in move list and enable scoring
-        for (int count = 0; count < moveList.count; count++)
-        {
-            if (pvTable[0, ply] == moveList.moves[count])
-            {
-                scorepv = true;
-                followpv = true;
-            }
-        }
-    }
     private static bool HasNonPawnMaterial(int sideToCheck)
     {
-        if (sideToCheck == (int)Side.white)
-        {
-            return bitboards[N] != 0 ||
-                bitboards[B] != 0 ||
-                bitboards[R] != 0 ||
-                bitboards[Q] != 0;
-        }
-        else
-        {
-            return bitboards[n] != 0 ||
-                bitboards[b] != 0 ||
-                bitboards[r] != 0 ||
-                bitboards[q] != 0;
-        }
+        return sideToCheck == (int)Side.white
+            ? bitboards[N] != 0 || bitboards[B] != 0 || bitboards[R] != 0 || bitboards[Q] != 0
+            : bitboards[n] != 0 || bitboards[b] != 0 || bitboards[r] != 0 || bitboards[q] != 0;
     }
 }

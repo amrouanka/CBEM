@@ -149,14 +149,9 @@ public static class Uci
 
         int depth = -1;
         bool infinite = false;
-        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
+        var parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-        // Reset time control variables
-        TimeManagement.movetime = -1;
-        TimeManagement.time = -1;
-        TimeManagement.inc = 0;
-        TimeManagement.movestogo = 30;
-        TimeManagement.timeset = false;
+        TimeManagement.ResetForGo();
 
         for (int i = 0; i < parts.Length; i++)
         {
@@ -197,57 +192,35 @@ public static class Uci
             }
         }
 
-        TimeManagement.starttime = TimeManagement.GetTimeMs();
-
         if (infinite)
         {
-            TimeManagement.timeset = false;
+            TimeManagement.StartInfiniteSearch();
         }
         else if (TimeManagement.movetime != -1)
         {
-            TimeManagement.timeset = true;
-
-            int overhead = 30;
-            int allocated = Math.Max(1, TimeManagement.movetime - overhead);
-
-            TimeManagement.stoptime = TimeManagement.starttime + allocated;
+            TimeManagement.StartMoveTimeSearch(TimeManagement.movetime);
         }
         else if (TimeManagement.time != -1)
         {
-            TimeManagement.timeset = true;
-
-            int remainingTime = TimeManagement.time;
-            int movesToGo = Math.Max(1, TimeManagement.movestogo);
-
-            // safer reserves
-            int overhead = 50;
-            int reserve = Math.Max(50, remainingTime / 20); // keep 5% in reserve
-
-            int usableTime = Math.Max(1, remainingTime - reserve - overhead);
-
-            // use only part of increment
-            int incBonus = TimeManagement.inc / 2;
-
-            int allocated = usableTime / movesToGo + incBonus;
-
-            // cap so one move doesn't eat too much
-            allocated = Math.Min(allocated, usableTime / 4);
-
-            // never allocate less than 1 ms
-            allocated = Math.Max(1, allocated);
-
-            TimeManagement.stoptime = TimeManagement.starttime + allocated;
+            TimeManagement.StartClockSearch(
+                TimeManagement.time,
+                TimeManagement.inc);
         }
 
         if (depth == -1)
             depth = 64;
 
         if (Program.debug)
-            Console.WriteLine($"info string time:{TimeManagement.time} start:{TimeManagement.starttime} stop:{TimeManagement.stoptime} depth:{depth} timeset:{TimeManagement.timeset}");
+        {
+            Console.WriteLine(
+                $"info string start:{TimeManagement.starttime} " +
+                $"soft:{TimeManagement.softStopTime} " +
+                $"hard:{TimeManagement.stoptime} " +
+                $"time:{TimeManagement.time} inc:{TimeManagement.inc} depth:{depth}");
+        }
 
         Search.SearchPosition(depth);
     }
-
     // Main UCI loop
     public static void UciLoop()
     {

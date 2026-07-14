@@ -1,5 +1,4 @@
-﻿
-using static MoveFlag;
+﻿using static MoveFlag;
 using static MoveGenerator;
 
 class Program
@@ -20,7 +19,7 @@ class Program
     public const string GrunfeldExchange = "rn1q1rk1/pp2ppbp/6p1/2pP4/2P1P1b1/2N5/PP2N1PP/R1BQKB1R w KQ - 1 9";
 
     // Debug mode variable
-    public static bool debug = false;
+    public static bool debug = true;
 
     static void Main()
     {
@@ -32,7 +31,7 @@ class Program
             // Depth(13)= 5.05m - 1st: 5.75m
             // Depth(14)= 8.46m - 1st: 10.5m
             // Depth(15)= 15.1m - 1st: 17.9m
-            // Depth(16)= 22.7m - 1st: 30.8m
+            // Depth(16)= 22.7m - 1st: 30.7m
             
             TestNodes(12);
             TranspositionTable.Clear();
