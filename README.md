@@ -122,14 +122,14 @@ The project is organized into multiple version, each building upon the previous 
 - **Performance Impact**:
   - **Theoretical improvements**: 15% additional node reduction over v2.2 baseline with increased search depths
   - **Practical reality**: Without transposition tables, the engine performs worse than v2.2 due to aspiration window inefficiencies
-  - **Recommendation**: Use v2.4 for best performance with transposition tables and aspiration windows
+  - **Recommendation**: Use v3.0 for best performance with transposition tables and aspiration windows
 - **Technical Details**:
   - Aspiration window restart logic handles score falls outside window but causes depth skipping
   - LMR reduction carefully balanced to avoid search instability
   - Capture checks in killer moves maintained for theoretical correctness
   - Parameters extensively tested but limited by lack of transposition table support
 
-### CBEMv2.4_TranspositionTables
+### CBEMv3.0_TranspositionTables
 - **Advanced Features**: Transposition table implementation with repetition detection and enhanced time management
 - **Major Optimizations**:
   - **Transposition Table**: 256MB hash table with replacement strategy for storing search results
@@ -211,17 +211,17 @@ The project is organized into multiple version, each building upon the previous 
    # or
    dotnet build CBEMv2.3_AspirationWindows/CBEMv2.3_AspirationWindows.csproj
    # or
-   dotnet build CBEMv2.4_TranspositionTables/CBEMv2.4_TranspositionTables.csproj
+   dotnet build CBEMv3.0_TranspositionTables/CBEMv3.0_TranspositionTables.csproj
    ```
 
 3. **Run in debug mode** (for testing):
    ```bash
-   dotnet run --project CBEMv2.4_TranspositionTables
+   dotnet run --project CBEMv3.0_TranspositionTables
    ```
 
 4. **Run with UCI GUI**:
    ```bash
-   dotnet run --project CBEMv2.4_TranspositionTables --no-debug
+   dotnet run --project CBEMv3.0_TranspositionTables --no-debug
    ```
 
 ### Testing
@@ -316,4 +316,4 @@ This project is provided for educational purposes. Please check the license file
 
 **Note**: Each version of CBEM is designed to be a standalone implementation. Start with v1.0 to understand the basics, then progress through v1.1, v1.2, v1.3, v1.4, v1.5, v1.6. The v2.2_NullMove version represents comprehensive search optimizations including null move pruning, aggressive LMR, enhanced delta pruning, and futility pruning, providing dramatic performance improvements (50-80% node reduction).
 
-**✅ Recommended**: The v2.4_TranspositionTables version is the current recommended version, featuring transposition tables, repetition detection, enhanced aspiration windows, and improved time management. This version provides the best performance with 30-50% additional node reduction over v2.2 and fully functional aspiration windows.
+**✅ Recommended**: The v3.0_TranspositionTables version is the current recommended version, featuring transposition tables, repetition detection, enhanced aspiration windows, and improved time management. This version provides the best performance with 30-50% additional node reduction over v2.2 and fully functional aspiration windows.
