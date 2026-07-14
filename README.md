@@ -132,7 +132,7 @@ The project is organized into multiple version, each building upon the previous 
 ### CBEMv3.0_TranspositionTables
 - **Advanced Features**: Transposition table implementation with repetition detection and enhanced time management
 - **Major Optimizations**:
-  - **Transposition Table**: 256MB hash table with replacement strategy for storing search results
+  - **Transposition Table**: 64MB hash table with replacement strategy for storing search results
   - **Repetition Detection**: Threefold repetition detection using position history tracking
   - **Enhanced Aspiration Windows**: Now fully functional with transposition table support
   - **Improved Time Management**: Safer time allocation with reserves and overhead handling
