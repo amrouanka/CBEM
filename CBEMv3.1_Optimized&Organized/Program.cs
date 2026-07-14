@@ -26,6 +26,7 @@ class Program
         if (debug)
         {
             // 1st: if (inCheck) depth++
+            // 2nd
 
             // Depth(12)= 2.77m - 1st: 3.75m - 2nd: 
             // Depth(13)= 5.05m - 1st: 5.75m - 2nd: 

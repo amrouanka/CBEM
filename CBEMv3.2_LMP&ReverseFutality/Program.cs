@@ -26,13 +26,22 @@ class Program
         if (debug)
         {
             // 1st: if (inCheck) depth++
+            // Fixed: 
+            // Fixed Null Move Pruning implementation
+            // Fixed LMR cutting almost all moves regardless good or bad (too aggressive - goes straight to quiescence)
 
-            // Depth(12)= 2.77m - 1st: 3.75m - 2nd: 
-            // Depth(13)= 5.05m - 1st: 5.75m - 2nd: 
-            // Depth(14)= 8.46m - 1st: 10.5m - 2nd: 
-            // Depth(15)= 15.1m - 1st: 17.9m - 2nd: 
-            // Depth(16)= 22.7m - 1st: 30.7m - 2nd: 
-            
+            // Depth(12)= 2.77m - 1st: 3.75m - Fixed: 5.58m
+            // Depth(13)= 5.05m - 1st: 5.75m - Fixed: 10.2m
+            // Depth(14)= 8.46m - 1st: 10.5m - Fixed: 18.0m
+            // Depth(15)= 15.1m - 1st: 17.9m - Fixed: 24.4m
+            // Depth(16)= 22.7m - 1st: 30.7m - Fixed: 40.9m
+
+            // Depth(12)= 5.58m -> 
+            // Depth(13)= 10.2m -> 
+            // Depth(14)= 18.0m -> 
+            // Depth(15)= 24.4m -> 
+            // Depth(16)= 40.9m -> 
+
             TestNodes(12);
             TranspositionTable.Clear();
             TestNodes(13);

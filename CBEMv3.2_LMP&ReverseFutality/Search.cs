@@ -213,17 +213,17 @@ public static class Search
         int extension = (inCheck && ply < MaxPly - 10) ? 1 : 0;
         depth += extension;
 
-        // ── Reverse futility pruning ──────────────
-        // If static eval beats beta by a large margin we can prune.
-        // if (depth <= 3 && !inCheck && !pvNode && ply > 0)
-        // {
-        //     int rfpEval = Evaluation.Evaluate();
-        //     if (rfpEval - 120 * depth >= beta)
-        //         return beta;
-        // }
+        // Compute staticEval once, used by both null move and futility pruning
+        int staticEval = (!inCheck) ? Evaluation.Evaluate() : 0;
 
         // ── Null move pruning ─────────────────────
-        if (depth >= 3 && !inCheck && ply > 0 && allowNullMove && HasNonPawnMaterial(side))
+        if (depth >= 4 &&
+            !pvNode &&
+            !inCheck &&
+            ply > 0 &&
+            allowNullMove &&
+            HasNonPawnMaterial(side) &&
+            staticEval >= beta)
         {
             BoardState nmState = CopyBoard();
 
@@ -235,24 +235,27 @@ public static class Search
                 enPassant = (int)Square.noSquare;
             }
 
-            // int R = 2 + depth / 4;
-            // if (R > depth - 1) R = depth - 1;
-            int R = 2;
+            int R = 2 + depth / 6;
+            R = Math.Min(R, depth - 2);
 
+            ply++;
             int nmScore = -AlphaBeta(-beta, -beta + 1, depth - 1 - R, false);
+            ply--;
             TakeBack(nmState);
+
+            // If time stopped then it probably stopped in AlphaBeta search above so we return 0 since the value is not trusted
+            if (TimeManagement.stopped) return 0;
 
             if (nmScore >= beta) return beta;
         }
 
         // ── Futility pruning setup ────────────────
         bool futilityOk = depth <= 2 && !inCheck && !pvNode;
-        int  staticEval  = futilityOk ? Evaluation.Evaluate() : 0;
-        int  futMargin   = depth == 1 ? 200 : 400;
-        bool canPrune    = futilityOk && (staticEval + futMargin <= alpha);
+        int  futMargin  = depth == 1 ? 200 : 400;
+        bool canPrune   = futilityOk && (staticEval + futMargin <= alpha);
 
         // ── Move generation & ordering ────────────
-        var moveList = new MoveList();
+        MoveList moveList = new MoveList();
         GenerateMoves(ref moveList);
 
         if (followPv) EnablePvScoring(moveList);
@@ -273,11 +276,6 @@ public static class Search
             // Futility pruning: skip hopeless quiet moves
             if (canPrune && movesSearched > 0 && isQuiet)
                 continue;
-
-            // Late move pruning: skip quiet moves beyond threshold
-            // if (depth <= 3 && !inCheck && !pvNode &&
-            //     movesSearched >= 3 + depth * 2 && isQuiet)
-            //     continue;
 
             BoardState state = CopyBoard();
             if (MakeMove(move, (int)MoveFlag.allMoves) == 0)
@@ -305,14 +303,16 @@ public static class Search
                     !inCheck                        &&
                     isQuiet)
                 {
-                    int reduction = 1 + (movesSearched / 2) + (depth / 3);
+                    int reduction = 1;
+                    if (movesSearched >= 6)  reduction++;
+                    if (movesSearched >= 12) reduction++;
+                    if (movesSearched >= 18) reduction++;
+                    if (depth >= 6)          reduction++;
+                    if (depth >= 12)         reduction++;
+                    if (depth >= 18)         reduction++;
+                    reduction = Math.Clamp(reduction, 1, depth - 2);
 
-                    reduction = Math.Min(reduction, 6);
-                    reduction = Math.Min(reduction, depth - 2);
-
-                    int reducedDepth = Math.Max(1, depth - reduction - 1);
-
-                    score = -AlphaBeta(-alpha - 1, -alpha, reducedDepth);
+                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction);
                 }
                 else
                 {
@@ -363,7 +363,12 @@ public static class Search
             if (score > alpha)
             {
                 if (isQuiet)
+                {
                     historyMoves[GetMovePiece(move), GetMoveTarget(move)] += depth;
+
+                    if (historyMoves[GetMovePiece(move), GetMoveTarget(move)] > 7999)
+                        historyMoves[GetMovePiece(move), GetMoveTarget(move)] = 7999; // Must be less than killer moves!
+                }
 
                 alpha = score;
 
@@ -416,13 +421,10 @@ public static class Search
             int move = moveList.moves[i];
 
             // Delta pruning
-            // if (!inCheck)
-            // {
-                int capVal  = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
-                int promoVal = GetMovePromoted(move) != 0
-                               ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
-                if (eval + capVal + promoVal + 10 < alpha) continue;
-            // }
+            int capVal  = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
+            int promoVal = GetMovePromoted(move) != 0
+                            ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
+            if (eval + capVal + promoVal + 10 < alpha) continue;
 
             BoardState state = CopyBoard();
             if (MakeMove(move, (int)MoveFlag.allMoves) == 0)
