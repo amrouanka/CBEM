@@ -305,30 +305,13 @@ public static class Search
                     !inCheck                        &&
                     isQuiet)
                 {
-                    // Check if move gives check (don't reduce checking moves)
-                    // int oppKSq = (side == (int)Side.white)
-                    //     ? BitboardOperations.GetLs1bIndex(bitboards[K])
-                    //     : BitboardOperations.GetLs1bIndex(bitboards[k]);
-                    // bool givesCheck = PieceAttacks.IsSquareAttacked(oppKSq, side ^ 1);
-
-                    // if (!givesCheck)
-                    // {
-                    //     int reduction = 1;
-                    //     if (movesSearched >= 6)  reduction++;
-                    //     if (movesSearched >= 12) reduction++;
-                    //     if (depth >= 6)          reduction++;
-                    //     if (depth >= 12)         reduction++;
-                    //     reduction = Math.Clamp(reduction, 1, depth - 2);
-
-                    //     score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction);
-                    // }
-                    // else
-                    // {
-                    //     score = alpha + 1; // skip reduction, fall through to PVS
-                    // }
                     int reduction = 1 + (movesSearched / 2) + (depth / 3);
+
                     reduction = Math.Min(reduction, 6);
+                    reduction = Math.Min(reduction, depth - 2);
+
                     int reducedDepth = Math.Max(1, depth - reduction - 1);
+
                     score = -AlphaBeta(-alpha - 1, -alpha, reducedDepth);
                 }
                 else

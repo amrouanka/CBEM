@@ -183,7 +183,7 @@ public static class Search
     private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
     {
         // Check time and input periodically
-        if ((nodes & 511) == 0)
+        if ((nodes & 2047) == 0)
             TimeManagement.Communicate();
 
         // Stop search if time is up
@@ -443,7 +443,7 @@ public static class Search
     public static int Quiescence(int alpha, int beta)
     {
         // Check time and input periodically
-        if ((nodes & 511) == 0)
+        if ((nodes & 2047) == 0)
             TimeManagement.Communicate();
 
         // Stop search if time is up

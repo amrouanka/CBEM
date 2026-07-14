@@ -27,11 +27,11 @@ class Program
         {
             // 1st: if (inCheck) depth++
 
-            // Depth(12)= 2.77m - 1st: 3.75m
-            // Depth(13)= 5.05m - 1st: 5.75m
-            // Depth(14)= 8.46m - 1st: 10.5m
-            // Depth(15)= 15.1m - 1st: 17.9m
-            // Depth(16)= 22.7m - 1st: 30.7m
+            // Depth(12)= 2.77m - 1st: 3.75m - 2nd: 
+            // Depth(13)= 5.05m - 1st: 5.75m - 2nd: 
+            // Depth(14)= 8.46m - 1st: 10.5m - 2nd: 
+            // Depth(15)= 15.1m - 1st: 17.9m - 2nd: 
+            // Depth(16)= 22.7m - 1st: 30.7m - 2nd: 
             
             TestNodes(12);
             TranspositionTable.Clear();
