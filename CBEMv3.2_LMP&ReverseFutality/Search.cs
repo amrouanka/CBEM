@@ -141,7 +141,7 @@ public static class Search
         // Fallback: if no depth finished, pick first legal move
         if (bestMove == 0)
         {
-            var moveList = new MoveList();
+            MoveList moveList = new MoveList();
             GenerateMoves(ref moveList);
 
             for (int i = 0; i < moveList.count; i++)
@@ -398,6 +398,8 @@ public static class Search
         if ((nodes & 2047) == 0) TimeManagement.Communicate();
         if (TimeManagement.stopped) return 0;
 
+        if (ply >= MaxPly - 1) return Evaluation.Evaluate();
+
         nodes++;
 
         int eval = Evaluation.Evaluate();
@@ -410,7 +412,7 @@ public static class Search
                          : BitboardOperations.GetLs1bIndex(bitboards[k]);
         bool inCheck = PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
 
-        var moveList = new MoveList();
+        MoveList moveList = new MoveList();
         if (inCheck) GenerateMoves(ref moveList);
         else         GenerateCaptureMoves(ref moveList);
 
