@@ -33,6 +33,10 @@ public static class Search
     static readonly int fullDepthMoves = 2;
     static readonly int reductionLimit = 3;
 
+    // REPETITION TABLE HISTORY
+    // Stores hash keys of all positions in the current game
+    private static ulong[] repetitionTable = new ulong[1024]; // Max 1024 half-moves
+    public static int repetitionIndex = 0;
 
 
     // MVV-LVA: [attacker][victim] - Most Valuable Victim, Least Valuable Attacker
@@ -45,6 +49,36 @@ public static class Search
         {101, 201, 301, 401, 501, 601},
         {100, 200, 300, 400, 500, 600}
     };
+
+    // Call this whenever a move is made in the GAME (not during search)
+    public static void AddToRepetitionHistory(ulong hashKey)
+    {
+        if (repetitionIndex < repetitionTable.Length)
+            repetitionTable[repetitionIndex++] = hashKey;
+    }
+
+    // Call this when taking back a game move
+    public static void RemoveFromRepetitionHistory()
+    {
+        if (repetitionIndex > 0)
+            repetitionIndex--;
+    }
+
+    // Check if current position has occurred before
+    private static bool IsRepetition()
+    {
+        // Look backwards through game history
+        // Stop at repetitionIndex (the game moves, not search moves)
+        // Start at repetitionIndex - 2 to skip the current position which is stored at repetitionIndex - 1
+        for (int i = repetitionIndex - 2; i >= 0; i--)
+        {
+            if (repetitionTable[i] == Zobrist.hashKey)
+                return true; // Position seen before = draw!
+            // Strict rule:  3 occurrences = draw (official chess rules)
+            // Engine rule:  2 occurrences = draw (practical optimization)
+        }
+        return false;
+    }
 
     // Main search entry point with iterative deepening and aspiration windows
     public static void SearchPosition(int depth)
@@ -90,12 +124,13 @@ public static class Search
                 if (TimeManagement.stopped) break;
             }
 
+            // Check BEFORE using the score
+            if (TimeManagement.stopped) break;
+
             // Narrow the window for the next depth iteration around the found score
             alpha = score - 50;
             beta = score + 50;
             window = 50; // Reset window expansion
-
-            if (TimeManagement.stopped) break;
 
             // Output search info in UCI format
             if (!Program.debug)
@@ -150,7 +185,7 @@ public static class Search
     private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
     {
         // Check time and input periodically
-        if ((nodes & 2047) == 0)
+        if ((nodes & 511) == 0)
             TimeManagement.Communicate();
 
         // Stop search if time is up
@@ -159,6 +194,10 @@ public static class Search
 
         // Initialize PV length for current ply
         pvLength[ply] = ply;
+
+        // THREEFOLD REPETITION CHECK
+        if (ply > 0 && IsRepetition())
+            return 0; // Draw score
 
         // Leaf node: switch to quiescence search
         if (depth == 0)
@@ -169,6 +208,19 @@ public static class Search
             return Evaluation.Evaluate();
 
         nodes++;
+
+        // TRANSPOSITION TABLE PROBE - Do this EARLY, before anything else!
+        bool pvNode = (beta - alpha) > 1;
+        int ttMove = 0;
+        int ttScore = TranspositionTable.Probe(
+            Zobrist.hashKey, depth, alpha, beta, ply, out ttMove);
+        
+        // If we found a usable score AND we're not at the PV Node
+        // (At PV nodes we want exact scores for PV exactration)
+        if (ttScore != TranspositionTable.NoScore && !pvNode)
+        {
+            return ttScore; // Return cached result - skip the search
+        }
 
         // Check if current side is in check
         int kingSquare = (side == (int)Side.white) ?
@@ -182,8 +234,15 @@ public static class Search
         if (depth >= 3 && !inCheck && ply > 0 && allowNullMove && HasNonPawnMaterial(side))
         {
             BoardState state = CopyBoard();
+
+            Zobrist.hashKey ^= Zobrist.sideKey;
             side ^= 1;
-            enPassant = (int)Square.noSquare;
+
+            if (enPassant != (int)Square.noSquare)
+            {
+                Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
+                enPassant = (int)Square.noSquare;
+            }
 
             int R = 2; // Null move reduction depth
             int score = -AlphaBeta(-beta, -beta + 1, depth - 1 - R, false);
@@ -213,9 +272,14 @@ public static class Search
         GenerateMoves(ref moveList);
 
         if (followpv) EnablepvScoring(moveList);
-        SortMoves(moveList);
+
+        // USE TT MOVE FOR ORDERING - Score the TT move highest!
+        SortMoves(moveList, ttMove);
 
         int movesSearched = 0;
+        int bestScore = -50000;     // Track best score for TT storage
+        int bestMove = 0;           // Track best move for TT storage
+        int originalAlpha = alpha;  // Remember original alpha for TT flag
 
         // Search all moves
         for (int count = 0; count < moveList.count; count++)
@@ -248,7 +312,10 @@ public static class Search
 
             // Skip illegal moves
             if (MakeMove(moveList.moves[count], (int)MoveFlag.allMoves) == 0)
+            {
+                TakeBack(state);
                 continue;
+            }
 
             ply++;
             legalMoves++;
@@ -300,6 +367,13 @@ public static class Search
 
             movesSearched++;
 
+            // Track best move and score for TT storage
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestMove  = moveList.moves[count];
+            }
+
             // Beta cutoff: move is too good for opponent
             if (score >= beta)
             {
@@ -310,6 +384,10 @@ public static class Search
                     killerMoves[0, ply] = moveList.moves[count];
                 }
 
+                // STORE BETA CUTOFF in TT
+                TranspositionTable.Store(
+                    Zobrist.hashKey, depth, beta, bestMove, TTFlag.Beta, ply);
+
                 return beta;
             }
 
@@ -319,7 +397,8 @@ public static class Search
                 // Update history score for quiet moves
                 if (GetMoveCapture(moveList.moves[count]) == 0)
                 {
-                    historyMoves[GetMovePiece(moveList.moves[count]), GetMoveTarget(moveList.moves[count])] += depth;
+                    historyMoves[GetMovePiece(moveList.moves[count]),
+                                 GetMoveTarget(moveList.moves[count])] += depth;
                 }
 
                 alpha = score;
@@ -327,14 +406,9 @@ public static class Search
                 // Store move in PV table
                 pvTable[ply, ply] = moveList.moves[count];
 
-                // Copy PV line from deeper ply
-                int copyLength = pvLength[ply + 1] - (ply + 1);
-                if (copyLength > 0)
-                {
-                    Array.Copy(pvTable, ply + 1 + (ply + 1) * maxPly,
-                              pvTable, ply + 1 + ply * maxPly,
-                              copyLength);
-                }
+                // Copy PV from child ply into current ply
+                for (int nextPly = ply + 1; nextPly < pvLength[ply + 1]; nextPly++)
+                    pvTable[ply, nextPly] = pvTable[ply + 1, nextPly];
 
                 // Update PV length
                 pvLength[ply] = pvLength[ply + 1];
@@ -356,6 +430,13 @@ public static class Search
             }
         }
 
+        // STORE RESULT IN TT
+        TTFlag flag = (alpha <= originalAlpha) ? TTFlag.Alpha : TTFlag.Exact;
+        // If score >= beta ever happened, we returned beta EARLY
+
+        TranspositionTable.Store(
+            Zobrist.hashKey, depth, alpha, bestMove, flag, ply);
+
         // Return best score found
         return alpha;
     }
@@ -364,7 +445,7 @@ public static class Search
     public static int Quiescence(int alpha, int beta)
     {
         // Check time and input periodically
-        if ((nodes & 2047) == 0)
+        if ((nodes & 511) == 0)
             TimeManagement.Communicate();
 
         // Stop search if time is up
@@ -420,7 +501,10 @@ public static class Search
 
             // Skip illegal moves
             if (MakeMove(move, (int)MoveFlag.allMoves) == 0)
+            {
+                TakeBack(state);
                 continue;
+            }
 
             ply++;
             int score = -Quiescence(-beta, -alpha);
@@ -444,11 +528,11 @@ public static class Search
     }
 
     // Sort moves by score using insertion sort (efficient for small lists)
-    private static void SortMoves(MoveList moveList)
+    private static void SortMoves(MoveList moveList, int ttMove = 0)
     {
         // Score all moves first
         for (int i = 0; i < moveList.count; i++)
-            moveList.scores[i] = ScoreMove(moveList.moves[i]);
+            moveList.scores[i] = ScoreMove(moveList.moves[i], ttMove);
 
         // Insertion sort by score (descending)
         for (int i = 1; i < moveList.count; i++)
@@ -469,9 +553,13 @@ public static class Search
     }
 
     // Score moves for ordering: PV moves first, then captures, then quiet moves
-    private static int ScoreMove(int move)
+    private static int ScoreMove(int move, int ttMove = 0)
     {
-        // PV move gets highest priority
+        // TT MOVE gets the absolute highest priority!
+        if (move == ttMove)
+            return 30000;
+
+        // PV move (second highest priority)
         if (scorepv)
         {
             if (pvTable[0, ply] == move)

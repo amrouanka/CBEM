@@ -20,18 +20,36 @@ class Program
     public const string GrunfeldExchange = "rn1q1rk1/pp2ppbp/6p1/2pP4/2P1P1b1/2N5/PP2N1PP/R1BQKB1R w KQ - 1 9";
 
     // Debug mode variable
-    public static bool debug = true;
+    public static bool debug = false;
 
     static void Main()
     {
         if (debug)
         {
-            //TestNodes(12); // 4.6m (v2.2) - 9m (v2.3) - ?m (v2.4 - current)
+            // Depth(6) = 147k -> 79k nodes searched
+            // Depth(7) = 287k -> 127k
+            // Depth(8) = 607k -> 209k
+            // Depth(9) = 1.3m -> 421k
+            // Depth(10)= 2.5m -> 883k
+            // Depth(11)= 4.6m -> 1.6m
+            // Depth(12)= 9.9m -> 2.77m
+            // Depth(13)= 5m
+            // Depth(14)= 8.46m
+            
+            TestNodes(6);
+            TranspositionTable.Clear();
+            TestNodes(7);
+            TranspositionTable.Clear();
+            TestNodes(8);
+            TranspositionTable.Clear();
+            TestNodes(9);
+            TranspositionTable.Clear();
+            TestNodes(10);
+            TranspositionTable.Clear();
+            TestNodes(11);
 
-            Board.ParseFEN(Position5);
-            Board.PrintBoard();
-
-            PerftTest(4);
+            // Board.ParseFEN(TrickyPosition);
+            // PerftTest(4);
         }
         else
         {
@@ -39,7 +57,6 @@ class Program
             Uci.UciLoop();
         }
     }
-
 
     public static int GetTimeMs() => Environment.TickCount;
 

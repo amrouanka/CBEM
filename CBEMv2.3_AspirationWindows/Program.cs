@@ -20,7 +20,7 @@ class Program
     public const string GrunfeldExchange = "rn1q1rk1/pp2ppbp/6p1/2pP4/2P1P1b1/2N5/PP2N1PP/R1BQKB1R w KQ - 1 9";
 
     // Debug mode variable
-    public static bool debug = true;
+    public static bool debug = false;
 
     static void Main()
     {
@@ -36,13 +36,16 @@ class Program
             // Depth(11)= 7.9m -> 4.6m 
             // Depth(12)= 16.9m -> 9.9m
 
-            TestNodes(6);
-            TestNodes(7);
-            TestNodes(8);
-            TestNodes(9);
-            TestNodes(10);
-            TestNodes(11);
-            TestNodes(12);
+            // TestNodes(6);
+            // TestNodes(7);
+            // TestNodes(8);
+            // TestNodes(9);
+            // TestNodes(10);
+            // TestNodes(11);
+            // TestNodes(12);
+
+            Board.ParseFEN(StartPosition);
+            PerftTest(5);
 
             Console.WriteLine("\n\n\n");
         }

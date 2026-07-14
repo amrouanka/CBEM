@@ -51,10 +51,10 @@ public static class Zobrist
         ulong n1, n2, n3, n4;
 
         // Init random numbers slicing 16 bits from MS1B side
-        n1 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // And operation to get 16 bits (0xFFFF) - first 16 bits (bits 0-15)
-        n2 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // Second 16 bits (bits 16-31)
-        n3 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // Third 16 bits (bits 32-47)
-        n4 = (ulong)(GetRandomU32Number()) & 0xFFFF;    // Fourth 16 bits (bits 48-63)
+        n1 = (ulong)GetRandomU32Number() & 0xFFFF;    // And operation to get 16 bits (0xFFFF) - first 16 bits (bits 0-15)
+        n2 = (ulong)GetRandomU32Number() & 0xFFFF;    // Second 16 bits (bits 16-31)
+        n3 = (ulong)GetRandomU32Number() & 0xFFFF;    // Third 16 bits (bits 32-47)
+        n4 = (ulong)GetRandomU32Number() & 0xFFFF;    // Fourth 16 bits (bits 48-63)
 
         // Return random number by combining the four 16-bit parts into a 64-bit number
         return n1 | (n2 << 16) | (n3 << 32) | (n4 << 48);

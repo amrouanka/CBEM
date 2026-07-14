@@ -68,7 +68,7 @@ public static class Uci
             return;
 
         // Trim leading whitespace and skip "position"
-        var parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0 || parts[0] != "position")
             return;
 
@@ -116,20 +116,29 @@ public static class Uci
             ParseFEN(Program.StartPosition);
         }
 
+        // ✅ Reset repetition history
+        Search.repetitionIndex = 0;
+
         // Parse "moves" section if present
         if (idx < parts.Length && parts[idx] == "moves")
         {
             idx++;
             while (idx < parts.Length)
             {
-                string moveStr = parts[idx];
-                int move = ParseMove(moveStr);
+                int move = ParseMove(parts[idx]);
                 if (move == 0)
                     break; // illegal or unparsable move
+                
+                // ✅ Record position BEFORE the move
+                Search.AddToRepetitionHistory(Zobrist.hashKey);
+                
                 MakeMove(move, (int)MoveFlag.allMoves);
                 idx++;
             }
         }
+
+        // ✅ Record the final current position
+        Search.AddToRepetitionHistory(Zobrist.hashKey);
     }
 
     // Parse UCI "go" command (e.g., "go depth 5")
@@ -140,7 +149,7 @@ public static class Uci
 
         int depth = -1;
         bool infinite = false;
-        var parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
 
         // Reset time control variables
         TimeManagement.movetime = -1;
@@ -154,80 +163,88 @@ public static class Uci
             if (parts[i] == "go")
                 continue;
 
-            // infinite search
             if (parts[i] == "infinite")
             {
                 infinite = true;
-                continue;
             }
             else if (parts[i] == "depth" && i + 1 < parts.Length)
             {
-                if (int.TryParse(parts[i + 1], out int parsedDepth))
-                    depth = parsedDepth;
+                int.TryParse(parts[i + 1], out depth);
             }
             else if (parts[i] == "movetime" && i + 1 < parts.Length)
             {
-                if (int.TryParse(parts[i + 1], out int parsedMovetime))
-                    TimeManagement.movetime = parsedMovetime;
+                int.TryParse(parts[i + 1], out TimeManagement.movetime);
             }
             else if (parts[i] == "wtime" && i + 1 < parts.Length && side == (int)Side.white)
             {
-                if (int.TryParse(parts[i + 1], out int parsedTime))
-                    TimeManagement.time = parsedTime;
+                int.TryParse(parts[i + 1], out TimeManagement.time);
             }
             else if (parts[i] == "btime" && i + 1 < parts.Length && side == (int)Side.black)
             {
-                if (int.TryParse(parts[i + 1], out int parsedTime))
-                    TimeManagement.time = parsedTime;
+                int.TryParse(parts[i + 1], out TimeManagement.time);
             }
             else if (parts[i] == "winc" && i + 1 < parts.Length && side == (int)Side.white)
             {
-                if (int.TryParse(parts[i + 1], out int parsedInc))
-                    TimeManagement.inc = parsedInc;
+                int.TryParse(parts[i + 1], out TimeManagement.inc);
             }
             else if (parts[i] == "binc" && i + 1 < parts.Length && side == (int)Side.black)
             {
-                if (int.TryParse(parts[i + 1], out int parsedInc))
-                    TimeManagement.inc = parsedInc;
+                int.TryParse(parts[i + 1], out TimeManagement.inc);
             }
             else if (parts[i] == "movestogo" && i + 1 < parts.Length)
             {
-                if (int.TryParse(parts[i + 1], out int parsedMovestogo))
-                    TimeManagement.movestogo = parsedMovestogo;
+                int.TryParse(parts[i + 1], out TimeManagement.movestogo);
             }
         }
 
-        // Set up timing - simple C-style approach
         TimeManagement.starttime = TimeManagement.GetTimeMs();
 
         if (infinite)
         {
-            TimeManagement.time = -1;
-            TimeManagement.movetime = -1;
             TimeManagement.timeset = false;
         }
         else if (TimeManagement.movetime != -1)
         {
             TimeManagement.timeset = true;
-            TimeManagement.stoptime = TimeManagement.starttime + TimeManagement.movetime;
+
+            int overhead = 30;
+            int allocated = Math.Max(1, TimeManagement.movetime - overhead);
+
+            TimeManagement.stoptime = TimeManagement.starttime + allocated;
         }
         else if (TimeManagement.time != -1)
         {
-            // Simple C-style time management
             TimeManagement.timeset = true;
-            TimeManagement.time /= TimeManagement.movestogo;
-            TimeManagement.time -= 50; // buffer
-            TimeManagement.stoptime = TimeManagement.starttime + TimeManagement.time + TimeManagement.inc;
+
+            int remainingTime = TimeManagement.time;
+            int movesToGo = Math.Max(1, TimeManagement.movestogo);
+
+            // safer reserves
+            int overhead = 50;
+            int reserve = Math.Max(50, remainingTime / 20); // keep 5% in reserve
+
+            int usableTime = Math.Max(1, remainingTime - reserve - overhead);
+
+            // use only part of increment
+            int incBonus = TimeManagement.inc / 2;
+
+            int allocated = usableTime / movesToGo + incBonus;
+
+            // cap so one move doesn't eat too much
+            allocated = Math.Min(allocated, usableTime / 4);
+
+            // never allocate less than 1 ms
+            allocated = Math.Max(1, allocated);
+
+            TimeManagement.stoptime = TimeManagement.starttime + allocated;
         }
 
-        // Default depth if no "depth" argument found
         if (depth == -1)
             depth = 64;
 
         if (Program.debug)
             Console.WriteLine($"info string time:{TimeManagement.time} start:{TimeManagement.starttime} stop:{TimeManagement.stoptime} depth:{depth} timeset:{TimeManagement.timeset}");
 
-        // Start search
         Search.SearchPosition(depth);
     }
 
@@ -264,6 +281,7 @@ public static class Uci
             else if (input.StartsWith("ucinewgame"))
             {
                 ParsePosition("position startpos");
+                TranspositionTable.Clear(); // ✅ Clear TT only on new game
             }
             else if (input.StartsWith("go"))
             {

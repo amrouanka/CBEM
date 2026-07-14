@@ -4,7 +4,6 @@ using static MoveEncoding;
 using static PieceAttacks;
 using static Side;
 using static Square;
-using static Zobrist;
 
 public static class MoveGenerator
 {
@@ -501,6 +500,13 @@ public static class MoveGenerator
 
     public static int MakeMove(int move, int moveFlag)
     {
+        // Remove the old en passant from hash (if it existed)
+        if (enPassant != (int)noSquare)
+            Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
+
+        // Then clear it
+        enPassant = (int)noSquare;
+
         if (moveFlag == (int)MoveFlag.allMoves)
         {
             BoardState state = CopyBoard();
@@ -566,12 +572,6 @@ public static class MoveGenerator
 
             if (enpass != 0)
             {
-                // erase the pawn depending on side to move
-                if (side == (int)white)
-                    BitboardOperations.PopBit(ref bitboards[p], targetSquare + 8);
-                else
-                    BitboardOperations.PopBit(ref bitboards[P], targetSquare - 8);
-
                 // white to move
                 if (side == (int)white)
                 {
@@ -592,9 +592,6 @@ public static class MoveGenerator
                     Zobrist.hashKey ^= Zobrist.pieceKeys[P, targetSquare - 8];
                 }
             }
-            if (enPassant != (int)noSquare) Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
-
-            enPassant = (int)noSquare;
 
             if (doublePush != 0)
             {
@@ -640,8 +637,8 @@ public static class MoveGenerator
                     case c8:
                         BitboardOperations.PopBit(ref bitboards[r], (int)a8);
                         BitboardOperations.SetBit(ref bitboards[r], (int)d8);
-                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)a8];  // remove rook from a1 from hash key
-                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)d8];  // put rook on d1 into a hash key
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)a8];  // remove rook from a8 from hash key
+                        Zobrist.hashKey ^= Zobrist.pieceKeys[r, (int)d8];  // put rook on d8 into a hash key
                         break;
                 }
             }

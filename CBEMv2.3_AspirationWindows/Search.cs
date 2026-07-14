@@ -90,12 +90,13 @@ public static class Search
                 if (TimeManagement.stopped) break;
             }
 
+            // Check BEFORE using the score
+            if (TimeManagement.stopped) break;
+
             // Narrow the window for the next depth iteration around the found score
             alpha = score - 50;
             beta = score + 50;
             window = 50; // Reset window expansion
-
-            if (TimeManagement.stopped) break;
 
             // Output search info in UCI format
             if (!Program.debug)
