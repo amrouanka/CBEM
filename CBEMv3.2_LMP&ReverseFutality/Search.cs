@@ -7,9 +7,9 @@ public static class Search
     // ─────────────────────────────────────────────
     //  Constants
     // ─────────────────────────────────────────────
-    private const int MaxPly        = 64;
-    private const int Infinity      = 50000;
-    private const int MateScore     = 49000;
+    private const int MaxPly = 64;
+    private const int Infinity = 50000;
+    private const int MateScore = 49000;
 
     // LMR thresholds
     private const int FullDepthMoves = 4;
@@ -18,15 +18,16 @@ public static class Search
     // ─────────────────────────────────────────────
     //  Search state
     // ─────────────────────────────────────────────
-    private static int  ply;
+    private static int ply;
     private static long nodes;
-    public  static long LastNodeCount => nodes;
-    public  static int  lastBestMove = 0;
+    public static long LastNodeCount => nodes;
+    public static int lastBestMove = 0;
+    public static int lastDepthReached = 0;
 
     // ─────────────────────────────────────────────
     //  Move ordering tables
     // ─────────────────────────────────────────────
-    private static readonly int[,] killerMoves  = new int[2, MaxPly];
+    private static readonly int[,] killerMoves = new int[2, MaxPly];
     private static readonly int[,] historyMoves = new int[12, 64];
 
     // MVV-LVA [attacker][victim]
@@ -42,17 +43,17 @@ public static class Search
 
     // ─────────────────────────────────────────────
     //  Principal Variation
+    //  followPv / scorePv removed — PV move is now
+    //  passed directly as pvMove into SortMoves.
     // ─────────────────────────────────────────────
-    private static readonly int[,] pvTable  = new int[MaxPly, MaxPly];
-    private static readonly int[]  pvLength = new int[MaxPly];
-    private static bool followPv;
-    private static bool scorePv;
+    private static readonly int[,] pvTable = new int[MaxPly, MaxPly];
+    private static readonly int[] pvLength = new int[MaxPly];
 
     // ─────────────────────────────────────────────
     //  Repetition detection
     // ─────────────────────────────────────────────
     private static readonly ulong[] repetitionTable = new ulong[1024];
-    public  static int repetitionIndex = 0;
+    public static int repetitionIndex = 0;
 
     public static void AddToRepetitionHistory(ulong hashKey)
     {
@@ -80,66 +81,68 @@ public static class Search
     public static void SearchPosition(int depth)
     {
         // ── Reset search state ────────────────────
-        nodes    = 0;
-        ply      = 0;
-        followPv = false;
-        scorePv  = false;
+        nodes = 0;
+        ply = 0;
         TimeManagement.stopped = false;
 
         Array.Clear(pvTable);
         Array.Clear(killerMoves);
         Array.Clear(historyMoves);
 
-        int alpha          = -Infinity;
-        int beta           =  Infinity;
-        int bestMove       = 0;
-        int bestScore      = 0;
+        int alpha = -Infinity;
+        int beta = Infinity;
+        int bestMove = 0;
         int completedDepth = 0;
 
         // ── Iterative deepening loop ──────────────
         for (int currentDepth = 1; currentDepth <= depth; currentDepth++)
         {
-            followPv = true;
 
             // ── Aspiration windows ────────────────
             // Search with a narrow window around the previous score.
-            // On failure, widen only the side that failed and retry.
+            // On failure, widen only the failed side and retry.
             // After 3 consecutive failures, fall back to a full window.
-            int score     = AlphaBeta(alpha, beta, currentDepth);
-            int window    = 50;
-            int failCount = 0;
-
-            while ((score <= alpha || score >= beta) && !TimeManagement.stopped)
+            int score;
+            if (currentDepth < 4)
             {
-                failCount++;
+                // No aspiration at very shallow depths — not enough info yet
+                score = AlphaBeta(-Infinity, Infinity, currentDepth);
+            }
+            else
+            {
+                score = AlphaBeta(alpha, beta, currentDepth);
 
-                if (failCount >= 3)
-                {
-                    // Full window fallback — stop thrashing
-                    alpha = -Infinity;
-                    beta  =  Infinity;
-                }
-                else
-                {
-                    // Widen only the side that failed
-                    if (score <= alpha) alpha -= window;
-                    if (score >= beta)  beta  += window;
-                    window += window / 2;
-                }
+                int window = 50;
+                int failCount = 0;
 
-                followPv = true;
-                score    = AlphaBeta(alpha, beta, currentDepth);
+                while ((score <= alpha || score >= beta) && !TimeManagement.stopped)
+                {
+                    failCount++;
+
+                    if (failCount >= 3)
+                    {
+                        alpha = -Infinity;
+                        beta = Infinity;
+                    }
+                    else
+                    {
+                        if (score <= alpha) alpha -= window;
+                        if (score >= beta) beta += window;
+                        window += window / 2;
+                    }
+
+                    score = AlphaBeta(alpha, beta, currentDepth);
+                }
             }
 
             if (TimeManagement.stopped) break;
 
             // Prepare window for next depth
             alpha = score - 50;
-            beta  = score + 50;
+            beta = score + 50;
 
             // ── Commit completed iteration ────────
             completedDepth = currentDepth;
-            bestScore      = score;
             if (pvTable[0, 0] != 0) bestMove = pvTable[0, 0];
 
             // ── UCI info output ───────────────────
@@ -185,6 +188,7 @@ public static class Search
         if (Program.debug)
         {
             lastBestMove = bestMove;
+            lastDepthReached = completedDepth;
         }
         else
         {
@@ -198,7 +202,7 @@ public static class Search
     private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
     {
         // ── Time / node housekeeping ──────────────
-        if ((nodes & 4095) == 0) TimeManagement.Communicate();
+        if ((nodes & 16383) == 0) TimeManagement.Communicate();
         if (TimeManagement.stopped) return 0;
 
         pvLength[ply] = ply;
@@ -213,8 +217,8 @@ public static class Search
         bool inCheck = PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
 
         // ── Check extension ───────────────────────
-        // Extend by 1 ply when in check. The ply guard prevents
-        // explosions in long check sequences.
+        // Extend by 1 ply when in check, capped at depth 8 to avoid
+        // node explosions in long check sequences.
         if (inCheck && ply < MaxPly - 10) depth++;
 
         // ── Quiescence at horizon ─────────────────
@@ -226,9 +230,9 @@ public static class Search
         nodes++;
 
         // ── Transposition table probe ─────────────
-        bool pvNode  = (beta - alpha) > 1;
-        int  ttMove  = 0;
-        int  ttScore = TranspositionTable.Probe(
+        bool pvNode = (beta - alpha) > 1;
+        int ttMove = 0;
+        int ttScore = TranspositionTable.Probe(
                            Zobrist.hashKey, depth, alpha, beta, ply, out ttMove);
 
         if (ttScore != TranspositionTable.NoScore && !pvNode)
@@ -236,21 +240,20 @@ public static class Search
 
         // ── Static evaluation ─────────────────────
         // Computed once and shared by null move and futility pruning.
-        // Unreliable when in check, so we skip it in that case.
+        // Unreliable when in check, so skipped in that case.
         int staticEval = inCheck ? -MateScore : Evaluation.Evaluate();
 
         // ── Null move pruning ─────────────────────
         // Skip a move and search at reduced depth. If the result still
-        // exceeds beta, the position is so good we can prune the branch.
+        // exceeds beta, the position is good enough to prune the branch.
         // Requires non-pawn material to avoid zugzwang.
-        // We intentionally skip AddToRepetitionHistory for the null move
-        // because null moves are illegal — the side-key XOR guarantees
-        // a unique hash unreachable from any real game position.
-        if (depth >= 3        &&
-            !pvNode           &&
-            !inCheck          &&
-            ply > 0           &&
-            allowNullMove     &&
+        // A margin of +100 is added to staticEval >= beta to avoid
+        // pruning in dynamically unbalanced or sacrificial positions.
+        if (depth >= 3 &&
+            !pvNode &&
+            !inCheck &&
+            ply > 0 &&
+            allowNullMove &&
             HasNonPawnMaterial(side) &&
             staticEval >= beta)
         {
@@ -265,7 +268,7 @@ public static class Search
             }
 
             int evalBonus = Math.Min((staticEval - beta) / 200, 3);
-            int R         = 3 + depth / 3 + evalBonus;
+            int R = 3 + depth / 3 + evalBonus;
             R = Math.Min(R, depth - 1);
 
             ply++;
@@ -273,46 +276,48 @@ public static class Search
             ply--;
             TakeBack(nmState);
 
-            // Score is not trusted if time ran out during the search above
             if (TimeManagement.stopped) return 0;
-
             if (nmScore >= beta) return beta;
         }
 
         // ── Futility pruning ──────────────────────
-        // At shallow depths, if the static eval plus a margin still
-        // can't reach alpha, skip quiet moves that are unlikely to help.
+        // At very shallow depths, if static eval plus a margin still
+        // cannot reach alpha, skip quiet moves unlikely to help.
+        // Restricted to depth <= 2 and requires at least 2 moves searched
+        // before pruning to avoid missing the first good quiet move.
         bool futilityOk = depth <= 3 && !inCheck && !pvNode;
-        int  futMargin  = 100 * depth;
-        bool canPrune   = futilityOk && (staticEval + futMargin <= alpha);
+        int futMargin = 120 * depth;
+        bool canPrune = futilityOk && (staticEval + futMargin <= alpha);
 
         // ── Move generation & ordering ────────────
         MoveList moveList = new MoveList();
         GenerateMoves(ref moveList);
 
-        if (followPv) EnablePvScoring(moveList);
-        SortMoves(moveList, ttMove);
+        // The PV move at this ply from the previous iteration is passed
+        // directly into SortMoves. No global followPv/scorePv state needed.
+        int pvMove = (ply == 0) ? pvTable[0, 0] : 0;
+        SortMoves(moveList, ttMove, pvMove);
 
-        int  movesSearched = 0;
-        int  bestScore     = -Infinity;
-        int  bestMove      = 0;
-        int  originalAlpha = alpha;
-        int  legalMoves    = 0;
+        int movesSearched = 0;
+        int bestScore = -Infinity;
+        int bestMove = 0;
+        int originalAlpha = alpha;
+        int legalMoves = 0;
         bool anyMovePruned = false;
 
         // ── Main move loop ────────────────────────
         for (int i = 0; i < moveList.count; i++)
         {
-            int  move    = moveList.moves[i];
+            int move = moveList.moves[i];
             bool isCapture = GetMoveCapture(move) != 0;
-            bool isPromo   = GetMovePromoted(move) != 0;
-            bool isQuiet   = !isCapture && !isPromo;
+            bool isPromo = GetMovePromoted(move) != 0;
+            bool isQuiet = !isCapture && !isPromo;
 
             // ── Futility pruning ──────────────────
             // Never prune the TT move — it is our best known move.
-            if (canPrune      &&
+            if (canPrune &&
                 movesSearched > 0 &&
-                isQuiet       &&
+                isQuiet &&
                 move != ttMove)
             {
                 anyMovePruned = true;
@@ -341,13 +346,14 @@ public static class Search
             else
             {
                 // Late Move Reduction — reduce quiet moves that are
-                // unlikely to be best, then verify with PVS if needed.
+                // unlikely to be best. Skip reduction if the previous
+                // move was a capture (exchange sequence in progress).
                 if (movesSearched >= FullDepthMoves &&
-                    depth >= ReductionLimit         &&
-                    !inCheck                        &&
+                    depth >= ReductionLimit &&
+                    !inCheck &&
                     isQuiet)
                 {
-                    int reduction = (int)(0.75 + Math.Log(depth) * Math.Log(movesSearched) / 2.25);
+                    int reduction = (int)(1 + Math.Log(depth) * Math.Log(movesSearched) / 2);
                     reduction = Math.Clamp(reduction, 1, depth - 2);
 
                     // Reduce less for PV nodes
@@ -357,7 +363,7 @@ public static class Search
                 }
                 else
                 {
-                    // Not reducing — force entry into the PVS narrow search below
+                    // Not reducing — force entry into PVS narrow search below
                     score = alpha + 1;
                 }
 
@@ -366,7 +372,7 @@ public static class Search
                 {
                     score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
 
-                    // Full window re-search if the narrow search raised alpha
+                    // Full window re-search if narrow search raised alpha
                     if (score > alpha && score < beta)
                         score = -AlphaBeta(-beta, -alpha, depth - 1);
                 }
@@ -384,7 +390,7 @@ public static class Search
             if (score > bestScore)
             {
                 bestScore = score;
-                bestMove  = move;
+                bestMove = move;
             }
 
             // ── Beta cutoff ───────────────────────
@@ -411,7 +417,7 @@ public static class Search
             {
                 if (isQuiet)
                     historyMoves[GetMovePiece(move), GetMoveTarget(move)] += depth * depth;
-                    
+
                 alpha = score;
 
                 // Update PV table
@@ -445,7 +451,7 @@ public static class Search
     public static int Quiescence(int alpha, int beta)
     {
         // ── Time / node housekeeping ──────────────
-        if ((nodes & 4095) == 0) TimeManagement.Communicate();
+        if ((nodes & 16383) == 0) TimeManagement.Communicate();
         if (TimeManagement.stopped) return 0;
 
         // ── Depth safety ──────────────────────────
@@ -460,7 +466,7 @@ public static class Search
         bool inCheck = PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
 
         // ── Stand-pat evaluation ──────────────────
-        // When not in check, use the static eval as a lower bound.
+        // When not in check, use static eval as a lower bound.
         // If it already beats beta we can prune immediately.
         int eval = 0;
         if (!inCheck)
@@ -475,7 +481,7 @@ public static class Search
         // only captures to keep the search focused.
         MoveList moveList = new MoveList();
         if (inCheck) GenerateMoves(ref moveList);
-        else         GenerateCaptureMoves(ref moveList);
+        else GenerateCaptureMoves(ref moveList);
 
         SortMoves(moveList);
 
@@ -489,10 +495,10 @@ public static class Search
             // ── Delta pruning ─────────────────────
             // Skip captures where even the maximum material gain
             // plus a safety margin cannot raise alpha.
-            // Only applied when not in check — in check we must search all moves.
+            // Only applied when not in check.
             if (!inCheck)
             {
-                int capVal   = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
+                int capVal = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
                 int promoVal = GetMovePromoted(move) != 0
                                 ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
                 if (eval + capVal + promoVal + 200 < alpha) continue;
@@ -529,42 +535,39 @@ public static class Search
     // ═════════════════════════════════════════════
 
     // Score and sort all moves in descending order using insertion sort.
-    private static void SortMoves(MoveList moveList, int ttMove = 0)
+    private static void SortMoves(MoveList moveList, int ttMove = 0, int pvMove = 0)
     {
         for (int i = 0; i < moveList.count; i++)
-            moveList.scores[i] = ScoreMove(moveList.moves[i], ttMove);
+            moveList.scores[i] = ScoreMove(moveList.moves[i], ttMove, pvMove);
 
         for (int i = 1; i < moveList.count; i++)
         {
             int mv = moveList.moves[i];
             int sc = moveList.scores[i];
-            int j  = i - 1;
+            int j = i - 1;
             while (j >= 0 && moveList.scores[j] < sc)
             {
-                moveList.moves[j + 1]  = moveList.moves[j];
+                moveList.moves[j + 1] = moveList.moves[j];
                 moveList.scores[j + 1] = moveList.scores[j];
                 j--;
             }
-            moveList.moves[j + 1]  = mv;
+            moveList.moves[j + 1] = mv;
             moveList.scores[j + 1] = sc;
         }
     }
 
     // Assign a priority score to a move for ordering purposes.
     // Priority: TT move > PV move > captures (MVV-LVA) > killers > history.
-    private static int ScoreMove(int move, int ttMove = 0)
+    // The PV move is the best move from the previous iteration at this ply.
+    // It is passed in directly — no global state required.
+    private static int ScoreMove(int move, int ttMove = 0, int pvMove = 0)
     {
         // ── Priority 1: TT move ───────────────────
         if (move == ttMove) return 30000;
 
         // ── Priority 2: PV move ───────────────────
-        // scorePv is cleared here exactly once per sort cycle to prevent
-        // the flag from leaking into sibling or child nodes.
-        if (scorePv && pvTable[0, ply] == move)
-        {
-            scorePv = false;
-            return 20000;
-        }
+        // Best move from the previous iteration at this ply.
+        if (move == pvMove) return 20000;
 
         // ── Priority 3: Captures (MVV-LVA) ───────
         if (GetMoveCapture(move) != 0)
@@ -581,24 +584,6 @@ public static class Search
         return historyMoves[GetMovePiece(move), GetMoveTarget(move)];
     }
 
-    // Enable PV move scoring for the current node.
-    // Sets scorePv so the PV move receives its bonus in ScoreMove.
-    // If the PV move is not in the list, scorePv stays false — correct behaviour.
-    private static void EnablePvScoring(MoveList moveList)
-    {
-        followPv = false;
-
-        for (int i = 0; i < moveList.count; i++)
-        {
-            if (pvTable[0, ply] == moveList.moves[i])
-            {
-                scorePv  = true;
-                followPv = true;
-                return;
-            }
-        }
-    }
-
     // ═════════════════════════════════════════════
     //  Helpers
     // ═════════════════════════════════════════════
@@ -611,7 +596,7 @@ public static class Search
         R or r => 500,
         Q or q => 900,
         K or k => 20000,
-        _       => 0
+        _ => 0
     };
 
     // Pawns are checked first as they are the most common capture target.

@@ -25,65 +25,68 @@ class Program
     // ─────────────────────────────────────────────
     private static readonly (string fen, string bestMove, string name)[] TacticalTests = new[]
     {
-        // 1. Mate in 1 — back rank
-        ("6k1/5ppp/8/8/8/8/1r3PPP/3R2K1 w - - 0 1",
-        "d1d8", "Back Rank Mate — Rd8#"),
+        ("8/8/5p2/PR3pk1/8/1P4K1/8/5r2 w - - 3 42",
+        "b5b4", "Rook Endgame — b4"),
 
-        // 2. Mate in 1 — queen delivers
-        ("5rk1/pb2npp1/1pq4p/5p2/1PP1rB2/2Q1P2P/P4PP1/3RR1K1 w - - 0 1",
-        "c3g7", "Queen Mate — Qxg7#"),
+        ("8/5p2/8/p4k2/Pp6/1P4KP/8/8 b - - 1 45",
+        "f5e4", "Pawn Endgame — Ke4"),
 
-        // 3. Fork winning material — knight fork
-        ("r3k2r/ppp2ppp/2n5/3qp1B1/1b1P4/2N2Q2/PPP2PPP/R3KB1R w KQkq - 0 1",
-        "d4e5", "Central Break — dxe5"),
+        ("3q1rk1/1b1n1p1p/p2p3Q/3Np1Pp/2B1P3/P1N5/5r2/2KR4 w - - 0 25",
+        "g5g6", "Attack — g6"),
 
-        // 4. Winning pawn promotion
-        ("8/5P1k/8/8/8/8/6K1/8 w - - 0 1",
-        "f7f8q", "Promotion — f8=Q"),
+        ("8/5N2/2p5/7p/1k1pp1pP/3P2P1/6K1/8 w - - 0 59",
+        "d3e4", "Pawn Endgame — dxe4"),
 
-        // 5. Queen trap — win the queen
-        ("rnb1kbnr/ppppqppp/8/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 2 3",
-        "f3f7", "Scholar's Mate — Qxf7#"),
+        ("3r2k1/6P1/2p3rp/3qp3/p1p2Q2/2Pp4/PP1R2PP/5R1K w - - 0 31",
+        "f4f8", "Queen Invasion — Qf8+"),
 
-        // 6. Discovered attack
-        ("r1bqk2r/pppp1ppp/2n2n2/2b1p1B1/2B1P3/3P1N2/PPP2PPP/RN1QK2R b KQkq - 0 5",
-        "f6e4", "Win Bishop — Nxe4"),
+        ("r3k2r/1pB2pp1/p6p/2p3n1/4P3/P1PQ1b2/BP3q2/2K3RR w kq - 2 23",
+        "g1g5", "Win Knight — Rxg5"),
 
-        // 7. Skewer — rook wins material
-        ("6k1/8/8/8/8/8/1R6/4K2r w - - 0 1",
-        "b2b8", "Rook Skewer — Rb8+"),
+        ("r3kb1r/ppp2ppp/2n5/2q2P2/4N3/2p2P2/P5PP/R1BQKB1R b KQkq - 1 12",
+        "c3c2", "Promotion Threat — c2"),
 
-        // 8. Pin exploitation
-        ("r2qkb1r/ppp2ppp/2n1bn2/3pp3/4P1P1/3P1N1P/PPP1NP2/R1BQKB1R b KQkq - 0 5",
-        "e6c4", "Pin Exploit — Bc4"),
+        ("r3kb1r/ppp2ppp/2n5/2q2P2/4N3/5P2/P1p1Q1PP/R1B1KB1R b KQkq - 1 13",
+        "c5b4", "King Check — Qb4+"),
 
-        // 9. Sacrifice for mate — classic bishop sac
-        ("rnbqk2r/pppp1ppp/4pn2/8/1bPP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 2 4",
-        "e2e3", "Develop — e3"),
+        ("8/1p3r1p/6pk/p3Q3/6P1/PP5P/2r2q1N/R4B1K w - - 3 29",
+        "h3h4", "King Hunt — h4"),
 
-        // 10. Rook endgame — cut off king
-        ("8/8/8/4k3/8/8/1R6/4K3 w - - 0 1",
-        "b2b5", "Cut Off King — Rb5+"),
+        ("8/3r4/8/8/2PK4/5k2/8/8 w - - 4 61",
+        "d4e5", "Pawn Endgame — Ke5"),
 
-        // 11. Zwischenzug
-        ("r2qr1k1/ppp2ppp/2nb1n2/3p2B1/3P4/2N2N2/PPP1BPPP/R2Q1RK1 w - - 0 10",
-        "g5f6", "Zwischenzug — Bxf6"),
+        ("2r4k/Q7/P1p1q1p1/1pR4p/1P1b4/4PP2/3BKP2/8 b - - 0 31",
+        "h8g8", "Quiet King Defensive move — Kg8"),
 
-        // 12. Trapped piece — win bishop
-        ("rn1qkb1r/pbpppppp/1p3n2/6B1/2PP4/2N5/PP2PPPP/R2QKBNR b KQkq - 3 4",
-        "f6e4", "Trap Bishop — Nxe4"),
+        ("6k1/R4rp1/2p2p2/Bp1bp2P/3p4/R5P1/1PP2P1K/r7 w - - 0 1",
+        "a7a8", "Zwischenzug (In-Between Move) Simple Example 1 — Ra8"),
 
-        // 13. Clearance sacrifice
-        ("r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 7",
-        "d3d4", "Central Push — d4"),
+        ("rnb1kb1r/pp3ppp/2p5/4q3/4n3/3Q4/PPPB1PPP/2KR1BNR w - - 0 1",
+        "d3d8", "Attraction Simple Example 1 — Qd8+"),
 
-        // 14. King safety — castle
-        ("r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
-        "e1g1", "Castle Kingside — O-O"),
+        ("r1b1r1k1/1ppn1p1p/3pnqp1/8/p1P1P3/5P2/PbNQNBPP/1R2RB1K w - - 0 1",
+        "b1b2", "Rook sac to trap queen — Rxb2"),
 
-        // 15. Endgame — opposition
-        ("8/8/4k3/8/8/4K3/4P3/8 w - - 0 1",
-        "e3f4", "Opposition — Kf4"),
+        ("r3kb1r/3n1pp1/p6p/2pPp2q/Pp2N3/3B2PP/1PQ2P2/R3K2R w KQkq - 0 1",
+        "d5d6", "Positional pawn move to suffocate the bishop — d6"),
+
+        ("3r1bk1/p4ppp/Qp2p3/8/1P1B4/Pq2P1P1/2r2P1P/R3R1K1 b - - 0 1",
+        "e6e5", "Pawn move to trap the bishop in the middle of the board — e5"),
+
+        ("r4rk1/pp1n1p1p/1nqP2p1/2b1P1B1/4NQ2/1B3P2/PP2K2P/2R5 w - - 0 1",
+        "c1c5", "Rook sac to deflect knight away from king — Rxc5"),
+
+        ("r2qk2r/ppp1b1pp/2n1p3/3pP1n1/3P2b1/2PB1NN1/PP4PP/R1BQK2R w KQkq - 0 1",
+        "f3g5", "Queen sac to attack king with minor pieces — Nxg5"),
+
+        ("r1b1kb1r/1p1n1ppp/p2ppn2/6BB/2qNP3/2N5/PPP2PPP/R2Q1RK1 w kq - 0 1",
+        "d4e6", "Knight sac to gain positional adv while king in the middle — Nxe6"),
+
+        ("r2qrb1k/1p1b2p1/p2ppn1p/8/3NP3/1BN5/PPP3QP/1K3RR1 w - - 0 1",
+        "e4e5", "Pawn clearance sac — e5"),
+
+        ("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+        "c3d5", "Knight pressure pinned knight and attack the queen — Nd5"),
     };
 
     // Debug mode variable
@@ -113,7 +116,8 @@ class Program
     public static void RunTacticalTest()
     {
         int passed = 0;
-        int total  = TacticalTests.Length;
+        int total = TacticalTests.Length;
+        long totalDepth = 0;
 
         Console.WriteLine("═══════════════════════════════════════════════");
         Console.WriteLine("  Tactical Test Suite — 1 second per position");
@@ -139,14 +143,16 @@ class Program
             Search.SearchPosition(64);
 
             // ── Compare result ────────────────────
-            string engineMove = MoveEncoding.GetMove(Search.lastBestMove);
-            bool   correct    = engineMove == expectedMove;
+            string engineMove = MoveEncoding.GetMove(Search.lastBestMove).Trim();
+            bool correct = engineMove == expectedMove;
             if (correct) passed++;
+
+            totalDepth += Search.lastDepthReached;
 
             string status = correct ? "✓ PASS" : "✗ FAIL";
 
             Console.WriteLine($"  [{t + 1,2}/{total}] {status}  {name}");
-            Console.WriteLine($"         Expected: {expectedMove}  Got: {engineMove}  Nodes: {Search.LastNodeCount:N0}");
+            Console.WriteLine($"         Expected: {expectedMove}  Got: {engineMove}  Depth: {Search.lastDepthReached}");
             Console.WriteLine();
         }
 
@@ -154,10 +160,12 @@ class Program
         Console.WriteLine($"  Result: {passed}/{total} positions solved");
 
         double pct = (double)passed / total * 100.0;
+        double avgDepth = (double)totalDepth / total;
         Console.WriteLine($"  Accuracy: {pct:F1}%");
+        Console.WriteLine($"  Avg Depth: {avgDepth:F2}");
         Console.WriteLine("═══════════════════════════════════════════════");
     }
-    
+
     static void TestNodes(int depth)
     {
         // Parse FEN and print board

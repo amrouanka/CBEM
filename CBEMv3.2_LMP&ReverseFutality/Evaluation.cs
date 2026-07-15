@@ -163,10 +163,10 @@ public static class Evaluation
 
     static Evaluation()
     {
-        
-     /* In C#, a static constructor is guaranteed to be executed by the .NET runtime before any static members of the class are used  
-        for the first time. So, the moment the search algorithm calls Evaluation.Evaluate(), the runtime ensures that
-        InitializeTables() has already been run exactly once. */
+
+        /* In C#, a static constructor is guaranteed to be executed by the .NET runtime before any static members of the class are used  
+           for the first time. So, the moment the search algorithm calls Evaluation.Evaluate(), the runtime ensures that
+           InitializeTables() has already been run exactly once. */
         InitializeTables();
     }
 
