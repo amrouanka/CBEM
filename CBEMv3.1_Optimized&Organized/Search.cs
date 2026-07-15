@@ -12,7 +12,7 @@ public static class Search
     private const int MateScore     = 49000;
 
     // LMR thresholds
-    private const int FullDepthMoves = 2;
+    private const int FullDepthMoves = 4;
     private const int ReductionLimit = 3;
 
     // ─────────────────────────────────────────────
@@ -67,7 +67,7 @@ public static class Search
 
     private static bool IsRepetition()
     {
-        for (int i = repetitionIndex - 2; i >= 0; i--)
+        for (int i = repetitionIndex - 3; i >= 0; i -= 2)
             if (repetitionTable[i] == Zobrist.hashKey)
                 return true;
         return false;
@@ -195,7 +195,7 @@ public static class Search
     private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
     {
         // ── Time / node housekeeping ──────────────
-        if ((nodes & 2047) == 0) TimeManagement.Communicate();
+        if ((nodes & 4095) == 0) TimeManagement.Communicate();
         if (TimeManagement.stopped) return 0;
 
         pvLength[ply] = ply;
@@ -234,7 +234,7 @@ public static class Search
         // ── Static evaluation ─────────────────────
         // Computed once and shared by null move and futility pruning.
         // Unreliable when in check, so we skip it in that case.
-        int staticEval = inCheck ? 0 : Evaluation.Evaluate();
+        int staticEval = inCheck ? -MateScore : Evaluation.Evaluate();
 
         // ── Null move pruning ─────────────────────
         // Skip a move and search at reduced depth. If the result still
@@ -243,7 +243,7 @@ public static class Search
         // We intentionally skip AddToRepetitionHistory for the null move
         // because null moves are illegal — the side-key XOR guarantees
         // a unique hash unreachable from any real game position.
-        if (depth >= 4        &&
+        if (depth >= 3        &&
             !pvNode           &&
             !inCheck          &&
             ply > 0           &&
@@ -261,8 +261,9 @@ public static class Search
                 enPassant = (int)Square.noSquare;
             }
 
-            int R = 2 + depth / 6;
-            R = Math.Min(R, depth - 2);
+            int evalBonus = Math.Min((staticEval - beta) / 200, 3);
+            int R         = 3 + depth / 3 + evalBonus;
+            R = Math.Min(R, depth - 1);
 
             ply++;
             int nmScore = -AlphaBeta(-beta, -beta + 1, depth - 1 - R, false);
@@ -278,8 +279,8 @@ public static class Search
         // ── Futility pruning ──────────────────────
         // At shallow depths, if the static eval plus a margin still
         // can't reach alpha, skip quiet moves that are unlikely to help.
-        bool futilityOk = depth <= 2 && !inCheck && !pvNode;
-        int  futMargin  = depth == 1 ? 200 : 400;
+        bool futilityOk = depth <= 3 && !inCheck && !pvNode;
+        int  futMargin  = 100 * depth;
         bool canPrune   = futilityOk && (staticEval + futMargin <= alpha);
 
         // ── Move generation & ordering ────────────
@@ -300,7 +301,9 @@ public static class Search
         for (int i = 0; i < moveList.count; i++)
         {
             int  move    = moveList.moves[i];
-            bool isQuiet = GetMoveCapture(move) == 0 && GetMovePromoted(move) == 0;
+            bool isCapture = GetMoveCapture(move) != 0;
+            bool isPromo   = GetMovePromoted(move) != 0;
+            bool isQuiet   = !isCapture && !isPromo;
 
             // ── Futility pruning ──────────────────
             // Never prune the TT move — it is our best known move.
@@ -341,14 +344,11 @@ public static class Search
                     !inCheck                        &&
                     isQuiet)
                 {
-                    int reduction = 1;
-                    if (movesSearched >= 6)  reduction++;
-                    if (movesSearched >= 12) reduction++;
-                    if (movesSearched >= 18) reduction++;
-                    if (depth >= 6)          reduction++;
-                    if (depth >= 12)         reduction++;
-                    if (depth >= 18)         reduction++;
+                    int reduction = (int)(0.75 + Math.Log(depth) * Math.Log(movesSearched) / 2.25);
                     reduction = Math.Clamp(reduction, 1, depth - 2);
+
+                    // Reduce less for PV nodes
+                    if (pvNode && reduction > 1) reduction--;
 
                     score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction);
                 }
@@ -389,8 +389,12 @@ public static class Search
             {
                 if (isQuiet)
                 {
-                    killerMoves[1, ply] = killerMoves[0, ply];
-                    killerMoves[0, ply] = move;
+                    // Avoid duplicate killer entries
+                    if (killerMoves[0, ply] != move)
+                    {
+                        killerMoves[1, ply] = killerMoves[0, ply];
+                        killerMoves[0, ply] = move;
+                    }
                 }
 
                 TranspositionTable.Store(
@@ -403,8 +407,8 @@ public static class Search
             if (score > alpha)
             {
                 if (isQuiet)
-                    historyMoves[GetMovePiece(move), GetMoveTarget(move)] += depth;
-
+                    historyMoves[GetMovePiece(move), GetMoveTarget(move)] += depth * depth;
+                    
                 alpha = score;
 
                 // Update PV table
@@ -438,7 +442,7 @@ public static class Search
     public static int Quiescence(int alpha, int beta)
     {
         // ── Time / node housekeeping ──────────────
-        if ((nodes & 2047) == 0) TimeManagement.Communicate();
+        if ((nodes & 4095) == 0) TimeManagement.Communicate();
         if (TimeManagement.stopped) return 0;
 
         // ── Depth safety ──────────────────────────
@@ -488,7 +492,7 @@ public static class Search
                 int capVal   = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
                 int promoVal = GetMovePromoted(move) != 0
                                 ? GetPieceValue(GetMovePromoted(move)) - 100 : 0;
-                if (eval + capVal + promoVal + 10 < alpha) continue;
+                if (eval + capVal + promoVal + 200 < alpha) continue;
             }
 
             BoardState state = CopyBoard();

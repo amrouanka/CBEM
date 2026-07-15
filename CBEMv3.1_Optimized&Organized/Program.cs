@@ -19,7 +19,7 @@ class Program
     public const string GrunfeldExchange = "rn1q1rk1/pp2ppbp/6p1/2pP4/2P1P1b1/2N5/PP2N1PP/R1BQKB1R w KQ - 1 9";
 
     // Debug mode variable
-    public static bool debug = true;
+    public static bool debug = false;
 
     static void Main()
     {
@@ -36,11 +36,11 @@ class Program
             // Depth(15)= 15.1m - 1st: 17.9m - Fixed: 24.4m
             // Depth(16)= 22.7m - 1st: 30.7m - Fixed: 40.9m
 
-            // Depth(12)= 5.58m -> 6.53m
-            // Depth(13)= 10.2m -> 12.5m
-            // Depth(14)= 18.0m -> 26.2m
-            // Depth(15)= 24.4m -> 37.8m
-            // Depth(16)= 40.9m -> 55.9m
+            // Depth(12)= 5.58m -> 6.53m -> 7.9m  -> 12.3m -> 10.5m -> 9.97m -> 10.6m
+            // Depth(13)= 10.2m -> 12.5m -> 15.3m -> 21.7m -> 17.7m -> 17.3m -> 18.9m
+            // Depth(14)= 18.0m -> 26.2m -> 24.7m -> 40.9m -> 32.2m -> 30.3m -> 29.7m
+            // Depth(15)= 24.4m -> 37.8m -> 43.8m -> 73.2m -> 60.3m -> 57.4m ->
+            // Depth(16)= 40.9m -> 55.9m -> 77.9m
 
             TestNodes(12);
             TranspositionTable.Clear();
