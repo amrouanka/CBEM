@@ -21,6 +21,7 @@ public static class Search
     private static int  ply;
     private static long nodes;
     public  static long LastNodeCount => nodes;
+    public  static int  lastBestMove = 0;
 
     // ─────────────────────────────────────────────
     //  Move ordering tables
@@ -98,8 +99,6 @@ public static class Search
         // ── Iterative deepening loop ──────────────
         for (int currentDepth = 1; currentDepth <= depth; currentDepth++)
         {
-            if (TimeManagement.ShouldStopAfterIteration()) break;
-
             followPv = true;
 
             // ── Aspiration windows ────────────────
@@ -183,10 +182,14 @@ public static class Search
         }
 
         // ── Output best move ──────────────────────
-        Console.Write($"bestmove {GetMove(bestMove)}");
         if (Program.debug)
-            Console.Write($" | depth {completedDepth} score {bestScore} nodes {nodes}");
-        Console.WriteLine();
+        {
+            lastBestMove = bestMove;
+        }
+        else
+        {
+            Console.WriteLine($"bestmove {GetMove(bestMove)}");
+        }
     }
 
     // ═════════════════════════════════════════════
