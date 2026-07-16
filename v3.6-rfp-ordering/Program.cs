@@ -15,7 +15,7 @@ class Program
     {
         if (debug)
         {
-            RunTacticalTest(); // 13.5~13.7
+            RunTacticalTest(); // [12/24] 13.1 ->  [12/24] 13.5
         }
         else
         {
@@ -66,9 +66,6 @@ class Program
 
         ("6k1/R4rp1/2p2p2/Bp1bp2P/3p4/R5P1/1PP2P1K/r7 w - - 0 1",
         "a7a8", "Zwischenzug (In-Between Move) Simple Example 1 — Ra8"),
-
-        ("rnb1kb1r/pp3ppp/2p5/4q3/4n3/3Q4/PPPB1PPP/2KR1BNR w - - 0 1",
-        "d3d8", "Attraction Simple Example 1 — Qd8+"),
 
         ("r1b1r1k1/1ppn1p1p/3pnqp1/8/p1P1P3/5P2/PbNQNBPP/1R2RB1K w - - 0 1",
         "b1b2", "Rook sac to trap queen — Rxb2"),

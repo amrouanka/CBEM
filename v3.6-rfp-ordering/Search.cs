@@ -28,7 +28,7 @@ public static class Search
                     continue;
                 }
 
-                int reduction = (int)(1 + Math.Log(depth) * Math.Log(moves) / 2.0);
+                int reduction = (int)(1 + Math.Log(depth) * Math.Log(moves) / 2);
                 if (reduction < 1) reduction = 1;
 
                 int maxReduction = depth - 2;
@@ -313,6 +313,22 @@ public static class Search
         // Unreliable when in check, so skipped in that case.
         int staticEval = inCheck ? -MateScore : Evaluation.Evaluate();
 
+        // ── Reverse futility pruning ──────────────
+        // If static eval is far above beta, the position is so good
+        // that a full search is unlikely to change the result.
+        // Only applied at shallow depths, not in check, not on PV nodes.
+        if (depth <= 3 &&
+            !pvNode &&
+            !inCheck &&
+            ply > 0 &&
+            Math.Abs(staticEval) < MateThreshold)
+        {
+            int rfpMargin = 150 * depth;
+
+            if (staticEval - rfpMargin >= beta)
+                return beta;
+        }
+
         // ── Null move pruning ─────────────────────
         // Skip a move and search at reduced depth. If the result still
         // exceeds beta, the position is good enough to prune the branch.
@@ -341,7 +357,7 @@ public static class Search
             }
 
             int evalBonus = Math.Min((staticEval - beta) / 200, 3);
-            int R = 3 + depth / 3 + evalBonus;
+            int R = 3 + depth / 4 + evalBonus;
             R = Math.Min(R, depth - 1);
 
             ply++;
@@ -646,25 +662,42 @@ public static class Search
         // ── Priority 1: TT move ───────────────────
         if (move == ttMove) return 30000;
 
-        // ── Priority 2: PV move ───────────────────
+        int promoted = GetMovePromoted(move);
+
+        // ── Priority 2: Queen Promotions ──────────
+        // A Queen promotion is basically a massive material win.
+        // It must be searched before almost anything else.
+        if (promoted == Q || promoted == q) return 29000;
+
+        // ── Priority 3: PV move ───────────────────
         if (move == pvMove) return 20000;
 
         int piece = GetMovePiece(move);
         int target = GetMoveTarget(move);
 
-        // ── Priority 3: Captures (MVV-LVA) ───────
+        // ── Priority 4: Captures (MVV-LVA) ───────
         if (GetMoveCapture(move) != 0)
         {
             int victim = GetPieceAtSquare(target);
             return mvvLva[piece % 6, victim % 6] + 10000;
         }
 
-        // ── Priority 4: Killer moves ──────────────
+        // ── Priority 5: Killer moves ──────────────
         if (killerMove1[ply] == move) return 9000;
         if (killerMove2[ply] == move) return 8000;
 
-        // ── Priority 5: History heuristic ─────────
-        return historyMoves[piece, target];
+        // ── Priority 6: Castling ──────────────────
+        // Castling is statistically an excellent quiet move.
+        if (GetMoveCastling(move) != 0) return 7500;
+
+        // ── Priority 7: Underpromotions ───────────
+        if (promoted != 0) return 7200;
+
+        // ── Priority 8: History heuristic ─────────
+        int history = historyMoves[piece, target];
+
+        // Cap history so it NEVER overtakes killer moves or captures.
+        return history > 7000 ? 7000 : history;
     }
 
     // ═════════════════════════════════════════════
