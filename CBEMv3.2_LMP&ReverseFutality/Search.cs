@@ -14,6 +14,30 @@ public static class Search
     // LMR thresholds
     private const int FullDepthMoves = 4;
     private const int ReductionLimit = 3;
+    private static readonly int[,] lmrTable = new int[MaxPly + 1, 64];
+
+    static Search()
+    {
+        for (int depth = 0; depth <= MaxPly; depth++)
+        {
+            for (int moves = 0; moves < 64; moves++)
+            {
+                if (depth < 2 || moves < 1)
+                {
+                    lmrTable[depth, moves] = 1;
+                    continue;
+                }
+
+                int reduction = (int)(1 + Math.Log(depth) * Math.Log(moves) / 2.0);
+                if (reduction < 1) reduction = 1;
+
+                int maxReduction = depth - 2;
+                if (reduction > maxReduction) reduction = maxReduction;
+
+                lmrTable[depth, moves] = reduction;
+            }
+        }
+    }
 
     // ─────────────────────────────────────────────
     //  Search state
@@ -27,7 +51,8 @@ public static class Search
     // ─────────────────────────────────────────────
     //  Move ordering tables
     // ─────────────────────────────────────────────
-    private static readonly int[,] killerMoves = new int[2, MaxPly];
+    private static readonly int[] killerMove1 = new int[MaxPly];
+    private static readonly int[] killerMove2 = new int[MaxPly];
     private static readonly int[,] historyMoves = new int[12, 64];
 
     // MVV-LVA [attacker][victim]
@@ -70,17 +95,21 @@ public static class Search
     private static bool IsRepetition()
     {
         // No earlier reversible history to compare against
-        if (repetitionIndex < 3)
+        int index = repetitionIndex;
+        if (index < 3)
             return false;
 
         // Current position is at repetitionIndex - 1.
         // A repetition cannot go back beyond the last pawn move or capture,
         // so only search within the last halfmoveClock plies.
-        int earliest = Math.Max(0, repetitionIndex - 1 - halfmoveClock);
+        int earliest = index - 1 - halfmoveClock;
+        if (earliest < 0) earliest = 0;
 
-        for (int i = repetitionIndex - 3; i >= earliest; i -= 2)
+        ulong key = Zobrist.hashKey;
+
+        for (int i = index - 3; i >= earliest; i -= 2)
         {
-            if (repetitionTable[i] == Zobrist.hashKey)
+            if (repetitionTable[i] == key)
                 return true;
         }
 
@@ -126,7 +155,8 @@ public static class Search
         TimeManagement.stopped = false;
 
         Array.Clear(pvTable);
-        Array.Clear(killerMoves);
+        Array.Clear(killerMove1);
+        Array.Clear(killerMove2);
         Array.Clear(historyMoves);
 
         int alpha = -Infinity;
@@ -254,10 +284,7 @@ public static class Search
         if (halfmoveClock >= 100) return 0;
 
         // ── In-check detection ────────────────────
-        int kSq = (side == (int)Side.white)
-                    ? BitboardOperations.GetLs1bIndex(bitboards[K])
-                    : BitboardOperations.GetLs1bIndex(bitboards[k]);
-        bool inCheck = PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
+        bool inCheck = IsInCheck();
 
         // ── Check extension ───────────────────────
         // Extend by 1 ply when in check, capped at depth 8 to avoid
@@ -306,10 +333,11 @@ public static class Search
             side ^= 1;
             halfmoveClock++;
 
-            if (enPassant != (int)Square.noSquare)
+            int noSquare = (int)Square.noSquare;
+            if (enPassant != noSquare)
             {
                 Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
-                enPassant = (int)Square.noSquare;
+                enPassant = noSquare;
             }
 
             int evalBonus = Math.Min((staticEval - beta) / 200, 3);
@@ -398,8 +426,8 @@ public static class Search
                     !inCheck &&
                     isQuiet)
                 {
-                    int reduction = (int)(1 + Math.Log(depth) * Math.Log(movesSearched) / 2);
-                    reduction = Math.Clamp(reduction, 1, depth - 2);
+                    int moveIndex = movesSearched < 64 ? movesSearched : 63;
+                    int reduction = lmrTable[depth, moveIndex];
 
                     // Reduce less for PV nodes
                     if (pvNode && reduction > 1) reduction--;
@@ -444,10 +472,10 @@ public static class Search
                 if (isQuiet)
                 {
                     // Avoid duplicate killer entries
-                    if (killerMoves[0, ply] != move)
+                    if (killerMove1[ply] != move)
                     {
-                        killerMoves[1, ply] = killerMoves[0, ply];
-                        killerMoves[0, ply] = move;
+                        killerMove2[ply] = killerMove1[ply];
+                        killerMove1[ply] = move;
                     }
                 }
 
@@ -508,10 +536,7 @@ public static class Search
         nodes++;
 
         // ── In-check detection ────────────────────
-        int kSq = (side == (int)Side.white)
-                    ? BitboardOperations.GetLs1bIndex(bitboards[K])
-                    : BitboardOperations.GetLs1bIndex(bitboards[k]);
-        bool inCheck = PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
+        bool inCheck = IsInCheck();
 
         // ── Stand-pat evaluation ──────────────────
         // When not in check, use static eval as a lower bound.
@@ -585,6 +610,14 @@ public static class Search
     // Score and sort all moves in descending order using insertion sort.
     private static void SortMoves(MoveList moveList, int ttMove = 0, int pvMove = 0)
     {
+        // avoids full sort setup for 0 or 1 move nodes
+        if (moveList.count < 2)
+        {
+            if (moveList.count == 1)
+                moveList.scores[0] = ScoreMove(moveList.moves[0], ttMove, pvMove);
+            return;
+        }
+
         for (int i = 0; i < moveList.count; i++)
             moveList.scores[i] = ScoreMove(moveList.moves[i], ttMove, pvMove);
 
@@ -614,22 +647,24 @@ public static class Search
         if (move == ttMove) return 30000;
 
         // ── Priority 2: PV move ───────────────────
-        // Best move from the previous iteration at this ply.
         if (move == pvMove) return 20000;
+
+        int piece = GetMovePiece(move);
+        int target = GetMoveTarget(move);
 
         // ── Priority 3: Captures (MVV-LVA) ───────
         if (GetMoveCapture(move) != 0)
         {
-            int victim = GetPieceAtSquare(GetMoveTarget(move));
-            return mvvLva[GetMovePiece(move) % 6, victim % 6] + 10000;
+            int victim = GetPieceAtSquare(target);
+            return mvvLva[piece % 6, victim % 6] + 10000;
         }
 
         // ── Priority 4: Killer moves ──────────────
-        if (killerMoves[0, ply] == move) return 9000;
-        if (killerMoves[1, ply] == move) return 8000;
+        if (killerMove1[ply] == move) return 9000;
+        if (killerMove2[ply] == move) return 8000;
 
         // ── Priority 5: History heuristic ─────────
-        return historyMoves[GetMovePiece(move), GetMoveTarget(move)];
+        return historyMoves[piece, target];
     }
 
     // ═════════════════════════════════════════════
@@ -646,6 +681,15 @@ public static class Search
         K or k => 20000,
         _ => 0
     };
+
+    private static bool IsInCheck()
+    {
+        int kSq = side == (int)Side.white
+            ? BitboardOperations.GetLs1bIndex(bitboards[K])
+            : BitboardOperations.GetLs1bIndex(bitboards[k]);
+
+        return PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
+    }
 
     // Pawns are checked first as they are the most common capture target.
     private static int GetPieceAtSquare(int square)
