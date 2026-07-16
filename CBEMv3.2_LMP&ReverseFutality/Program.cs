@@ -23,8 +23,8 @@ class Program
     //  Each entry: (FEN, bestMove in coordinate notation, description)
     //  All positions verified for FEN validity.
     // ─────────────────────────────────────────────
-    private static readonly (string fen, string bestMove, string name)[] TacticalTests = new[]
-    {
+    private static readonly (string fen, string bestMove, string name)[] TacticalTests =
+    [
         ("8/8/5p2/PR3pk1/8/1P4K1/8/5r2 w - - 3 42",
         "b5b4", "Rook Endgame — b4"),
 
@@ -99,7 +99,7 @@ class Program
 
         ("r1bn2k1/p2p2P1/2p1r2P/1p2p3/2BqPn2/1P6/P1PP4/1K4R1 w - - 1 5",
         "h6h7", "Nolot #11 (follow-up) — h7+"),
-    };
+    ];
 
     // Debug mode variable
     public static bool debug = true;

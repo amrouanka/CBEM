@@ -149,7 +149,7 @@ public static class Uci
 
         int depth = -1;
         bool infinite = false;
-        var parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
 
         TimeManagement.ResetForGo();
 

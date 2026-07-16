@@ -15,7 +15,7 @@ public static class PieceAttacks
     public static ulong[] kingAttacks = new ulong[64];
 
     public static readonly int[] bishopRelevantBits =
-    {
+    [
         6, 5, 5, 5, 5, 5, 5, 6,
         5, 5, 5, 5, 5, 5, 5, 5,
         5, 5, 7, 7, 7, 7, 5, 5,
@@ -24,10 +24,10 @@ public static class PieceAttacks
         5, 5, 7, 7, 7, 7, 5, 5,
         5, 5, 5, 5, 5, 5, 5, 5,
         6, 5, 5, 5, 5, 5, 5, 6
-    };
+    ];
 
     public static readonly int[] rookRelevantBits =
-    {
+    [
         12, 11, 11, 11, 11, 11, 11, 12,
         11, 10, 10, 10, 10, 10, 10, 11,
         11, 10, 10, 10, 10, 10, 10, 11,
@@ -36,10 +36,10 @@ public static class PieceAttacks
         11, 10, 10, 10, 10, 10, 10, 11,
         11, 10, 10, 10, 10, 10, 10, 11,
         12, 11, 11, 11, 11, 11, 11, 12
-    };
+    ];
 
     public static readonly ulong[] rookMagicNumbers =
-    {
+    [
         0x8a80104000800020UL, 0x140002000100040UL, 0x2801880a0017001UL, 0x100081001000420UL,
         0x200020010080420UL, 0x3001c0002010008UL, 0x8480008002000100UL, 0x2080088004402900UL,
         0x800098204000UL, 0x2024401000200040UL, 0x100802000801000UL, 0x120800800801000UL,
@@ -56,10 +56,10 @@ public static class PieceAttacks
         0x1001004080100UL, 0x20c020080040080UL, 0x2935610830022400UL, 0x44440041009200UL,
         0x280001040802101UL, 0x2100190040002085UL, 0x80c0084100102001UL, 0x4024081001000421UL,
         0x20030a0244872UL, 0x12001008414402UL, 0x2006104900a0804UL, 0x1004081002402UL
-    };
+    ];
 
     public static readonly ulong[] bishopMagicNumbers =
-    {
+    [
         0x40040844404084UL, 0x2004208a004208UL, 0x10190041080202UL, 0x108060845042010UL,
         0x581104180800210UL, 0x2112080446200010UL, 0x1080820820060210UL, 0x3c0808410220200UL,
         0x4050404440404UL, 0x21001420088UL, 0x24d0080801082102UL, 0x1020a0a020400UL,
@@ -76,7 +76,7 @@ public static class PieceAttacks
         0x802241102020002UL, 0x20906061210001UL, 0x5a84841004010310UL, 0x4010801011c04UL,
         0xa010109502200UL, 0x4a02012000UL, 0x500201010098b028UL, 0x8040002811040900UL,
         0x28000010020204UL, 0x6000020202d0240UL, 0x8918844842082200UL, 0x4010011029020020UL
-    };
+    ];
 
     public static ulong SetOccupancy(int index, int bitsInMask, ulong attackMask)
     {

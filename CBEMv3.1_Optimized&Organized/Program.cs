@@ -23,8 +23,8 @@ class Program
     //  Each entry: (FEN, bestMove in coordinate notation, description)
     //  All positions verified for FEN validity.
     // ─────────────────────────────────────────────
-    private static readonly (string fen, string bestMove, string name)[] TacticalTests = new[]
-    {
+    private static readonly (string fen, string bestMove, string name)[] TacticalTests =
+    [
         // 1. Mate in 1 — back rank
         ("6k1/5ppp/8/8/8/8/1r3PPP/3R2K1 w - - 0 1",
         "d1d8", "Back Rank Mate — Rd8#"),
@@ -84,7 +84,7 @@ class Program
         // 15. Endgame — opposition
         ("8/8/4k3/8/8/4K3/4P3/8 w - - 0 1",
         "e3f4", "Opposition — Kf4"),
-    };
+    ];
 
     // Debug mode variable
     public static bool debug = false;
@@ -94,7 +94,7 @@ class Program
         if (debug)
         {
             // RunTacticalTest();
-            
+
             TestNodes(10); // 2.91m
             TranspositionTable.Clear();
             TestNodes(11); // 5.98m
@@ -113,7 +113,7 @@ class Program
     public static void RunTacticalTest()
     {
         int passed = 0;
-        int total  = TacticalTests.Length;
+        int total = TacticalTests.Length;
 
         Console.WriteLine("═══════════════════════════════════════════════");
         Console.WriteLine("  Tactical Test Suite — 1 second per position");
@@ -140,7 +140,7 @@ class Program
 
             // ── Compare result ────────────────────
             string engineMove = MoveEncoding.GetMove(Search.lastBestMove);
-            bool   correct    = engineMove == expectedMove;
+            bool correct = engineMove == expectedMove;
             if (correct) passed++;
 
             string status = correct ? "✓ PASS" : "✗ FAIL";
@@ -157,7 +157,7 @@ class Program
         Console.WriteLine($"  Accuracy: {pct:F1}%");
         Console.WriteLine("═══════════════════════════════════════════════");
     }
-    
+
     static void TestNodes(int depth)
     {
         // Parse FEN and print board

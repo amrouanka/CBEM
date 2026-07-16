@@ -535,8 +535,8 @@ public static class MoveGenerator
             {
                 // Pawns are most common capture target — check first
                 int[] searchOrder = isWhite
-                    ? new[] { p, n, b, r, q }   // black pieces, pawn first
-                    : new[] { P, N, B, R, Q };  // white pieces, pawn first
+                    ? [p, n, b, r, q]   // black pieces, pawn first
+                    : [P, N, B, R, Q];  // white pieces, pawn first
 
                 foreach (int bbPiece in searchOrder)
                 {

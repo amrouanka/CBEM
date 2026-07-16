@@ -15,10 +15,10 @@ public static class Uci
         GenerateMoves(ref moveList);
 
         // Parse source square
-        int sourceSquare = (moveString[0] - 'a') + (8 - (moveString[1] - '0')) * 8;
+        int sourceSquare = moveString[0] - 'a' + (8 - (moveString[1] - '0')) * 8;
 
         // Parse target square
-        int targetSquare = (moveString[2] - 'a') + (8 - (moveString[3] - '0')) * 8;
+        int targetSquare = moveString[2] - 'a' + (8 - (moveString[3] - '0')) * 8;
 
         // Loop over the generated moves
         for (int i = 0; i < moveList.count; i++)
@@ -39,13 +39,13 @@ public static class Uci
                     char promoChar = moveString[4];
                     switch (promoChar)
                     {
-                        case 'q' when (promotedPiece == Q || promotedPiece == q):
+                        case 'q' when promotedPiece == Q || promotedPiece == q:
                             return move;
-                        case 'r' when (promotedPiece == R || promotedPiece == r):
+                        case 'r' when promotedPiece == R || promotedPiece == r:
                             return move;
-                        case 'b' when (promotedPiece == B || promotedPiece == b):
+                        case 'b' when promotedPiece == B || promotedPiece == b:
                             return move;
-                        case 'n' when (promotedPiece == N || promotedPiece == n):
+                        case 'n' when promotedPiece == N || promotedPiece == n:
                             return move;
                         default:
                             continue; // mismatched promotion character
@@ -68,7 +68,7 @@ public static class Uci
             return;
 
         // Trim leading whitespace and skip "position"
-        var parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0 || parts[0] != "position")
             return;
 
@@ -139,7 +139,7 @@ public static class Uci
             return;
 
         int depth = -1;
-        var parts = command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
 
         for (int i = 0; i < parts.Length; i++)
         {
