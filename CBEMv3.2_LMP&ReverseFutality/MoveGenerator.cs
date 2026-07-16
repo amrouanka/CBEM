@@ -38,6 +38,8 @@ public static class MoveGenerator
         {
             bitboard = bitboards[piece];
 
+            if (bitboard == 0) continue;
+
             if (side == White)
             {
                 if (piece == P)
@@ -315,6 +317,8 @@ public static class MoveGenerator
         for (int piece = P; piece <= k; piece++)
         {
             bitboard = bitboards[piece];
+
+            if (bitboard == 0) continue;
 
             if (side == White)
             {
