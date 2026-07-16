@@ -1,7 +1,6 @@
-
 using static BitboardOperations;
 using static Board;
-using static Side;
+using static MoveGenerator;
 
 public static class PieceAttacks
 {
@@ -265,8 +264,8 @@ public static class PieceAttacks
     {
         for (int square = 0; square < 64; square++)
         {
-            pawnAttacks[(int)white, square] = MaskPawnAttacks((int)white, square);
-            pawnAttacks[(int)black, square] = MaskPawnAttacks((int)black, square);
+            pawnAttacks[White, square] = MaskPawnAttacks(White, square);
+            pawnAttacks[Black, square] = MaskPawnAttacks(Black, square);
 
             knightAttacks[square] = MaskKnightAttacks(square);
 
@@ -358,28 +357,28 @@ public static class PieceAttacks
 
     public static bool IsSquareAttacked(int square, int side)
     {
-        if (side == (int)white && (pawnAttacks[(int)black, square] & bitboards[P]) != 0)
+        if (side == White && (pawnAttacks[Black, square] & bitboards[P]) != 0)
             return true;
 
-        if (side == (int)black && (pawnAttacks[(int)white, square] & bitboards[p]) != 0)
+        if (side == Black && (pawnAttacks[White, square] & bitboards[p]) != 0)
             return true;
 
-        if ((knightAttacks[square] & (side == (int)white ? bitboards[N] : bitboards[n])) != 0)
+        if ((knightAttacks[square] & (side == White ? bitboards[N] : bitboards[n])) != 0)
             return true;
 
-        if ((GetBishopAttacks(square, occupancies[(int)both]) &
-            (side == (int)white ? bitboards[B] : bitboards[b])) != 0)
+        if ((GetBishopAttacks(square, occupancies[Both]) &
+            (side == White ? bitboards[B] : bitboards[b])) != 0)
             return true;
 
-        if ((GetRookAttacks(square, occupancies[(int)both]) &
-            (side == (int)white ? bitboards[R] : bitboards[r])) != 0)
+        if ((GetRookAttacks(square, occupancies[Both]) &
+            (side == White ? bitboards[R] : bitboards[r])) != 0)
             return true;
 
-        if ((GetQueenAttacks(square, occupancies[(int)both]) &
-            (side == (int)white ? bitboards[Q] : bitboards[q])) != 0)
+        if ((GetQueenAttacks(square, occupancies[Both]) &
+            (side == White ? bitboards[Q] : bitboards[q])) != 0)
             return true;
 
-        if ((kingAttacks[square] & (side == (int)white ? bitboards[K] : bitboards[k])) != 0)
+        if ((kingAttacks[square] & (side == White ? bitboards[K] : bitboards[k])) != 0)
             return true;
 
         return false;

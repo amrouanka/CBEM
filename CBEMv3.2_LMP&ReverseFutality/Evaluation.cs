@@ -244,6 +244,6 @@ public static class Evaluation
         int score = (middlegameScore * middlegamePhase + endgameScore * endgamePhase) / 24;
 
         // Return score from perspective of side to move
-        return (side == (int)Side.white) ? score : -score;
+        return (side == MoveGenerator.White) ? score : -score;
     }
 }

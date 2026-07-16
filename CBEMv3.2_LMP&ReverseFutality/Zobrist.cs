@@ -114,7 +114,7 @@ public static class Zobrist
         }
 
         // Hash side to move
-        if (Board.side == (int)Side.white)
+        if (Board.side == MoveGenerator.White)
             hashKey ^= sideKey;
 
         // Hash en passant square

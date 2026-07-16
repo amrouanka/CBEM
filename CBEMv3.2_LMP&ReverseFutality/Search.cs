@@ -684,7 +684,7 @@ public static class Search
 
     private static bool IsInCheck()
     {
-        int kSq = side == (int)Side.white
+        int kSq = side == White
             ? BitboardOperations.GetLs1bIndex(bitboards[K])
             : BitboardOperations.GetLs1bIndex(bitboards[k]);
 
@@ -714,7 +714,7 @@ public static class Search
     // Used to detect zugzwang-prone positions before null move pruning.
     private static bool HasNonPawnMaterial(int sideToCheck)
     {
-        return sideToCheck == (int)Side.white
+        return sideToCheck == White
             ? (bitboards[N] | bitboards[B] | bitboards[R] | bitboards[Q]) != 0
             : (bitboards[n] | bitboards[b] | bitboards[r] | bitboards[q]) != 0;
     }

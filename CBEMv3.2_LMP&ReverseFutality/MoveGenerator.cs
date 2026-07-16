@@ -2,7 +2,6 @@ using static Board;
 using static CastlingRights;
 using static MoveEncoding;
 using static PieceAttacks;
-using static Side;
 using static Square;
 
 public static class MoveGenerator
@@ -19,17 +18,27 @@ public static class MoveGenerator
         13, 15, 15, 15, 12, 15, 15, 14
     ];
 
+    public const int White = 0;
+    public const int Black = 1;
+    public const int Both = 2;
+
     public static void GenerateMoves(ref MoveList moveList)
     {
         moveList.count = 0;
         int sourceSquare, targetSquare;
         ulong bitboard, attacks;
 
+        bool isWhite = side == White;
+        ulong friendlyOcc = isWhite ? occupancies[White] : occupancies[Black];
+        ulong enemyOcc = isWhite ? occupancies[Black] : occupancies[White];
+        ulong bothOcc = occupancies[Both];
+        ulong notFriendly = ~friendlyOcc;
+
         for (int piece = P; piece <= k; piece++)
         {
             bitboard = bitboards[piece];
 
-            if (side == (int)white)
+            if (side == White)
             {
                 if (piece == P)
                 {
@@ -38,7 +47,7 @@ public static class MoveGenerator
                         sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
                         targetSquare = sourceSquare - 8;
 
-                        if (!(targetSquare < (int)a8) && !BitboardOperations.GetBit(occupancies[(int)both], targetSquare))
+                        if (!(targetSquare < (int)a8) && !BitboardOperations.GetBit(bothOcc, targetSquare))
                         {
                             // pawn promotion
                             if (sourceSquare >= (int)a7 && sourceSquare <= (int)h7)
@@ -54,12 +63,12 @@ public static class MoveGenerator
                                 AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 0, 0, 0, 0));
 
                                 // double push pawn move
-                                if (sourceSquare >= (int)a2 && sourceSquare <= (int)h2 && !BitboardOperations.GetBit(occupancies[(int)both], targetSquare - 8))
+                                if (sourceSquare >= (int)a2 && sourceSquare <= (int)h2 && !BitboardOperations.GetBit(bothOcc, targetSquare - 8))
                                     AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare - 8, piece, 0, 0, 1, 0, 0));
                             }
                         }
 
-                        attacks = pawnAttacks[side, sourceSquare] & occupancies[(int)black];
+                        attacks = pawnAttacks[side, sourceSquare] & occupancies[Black];
 
                         while (attacks != 0)
                         {
@@ -94,10 +103,10 @@ public static class MoveGenerator
                 // White castling
                 if (piece == K)
                 {
-                    if ((castle & (int)wk) != 0 && !BitboardOperations.GetBit(occupancies[(int)both], (int)f1) && !BitboardOperations.GetBit(occupancies[(int)both], (int)g1) && !IsSquareAttacked((int)e1, (int)black) && !IsSquareAttacked((int)f1, (int)black))
+                    if ((castle & (int)wk) != 0 && !BitboardOperations.GetBit(bothOcc, (int)f1) && !BitboardOperations.GetBit(bothOcc, (int)g1) && !IsSquareAttacked((int)e1, Black) && !IsSquareAttacked((int)f1, Black))
                         AddMove(ref moveList, EncodeMove((int)e1, (int)g1, piece, 0, 0, 0, 0, 1));
 
-                    if ((castle & (int)wq) != 0 && !BitboardOperations.GetBit(occupancies[(int)both], (int)d1) && !BitboardOperations.GetBit(occupancies[(int)both], (int)c1) && !BitboardOperations.GetBit(occupancies[(int)both], (int)b1) && !IsSquareAttacked((int)e1, (int)black) && !IsSquareAttacked((int)d1, (int)black))
+                    if ((castle & (int)wq) != 0 && !BitboardOperations.GetBit(bothOcc, (int)d1) && !BitboardOperations.GetBit(bothOcc, (int)c1) && !BitboardOperations.GetBit(bothOcc, (int)b1) && !IsSquareAttacked((int)e1, Black) && !IsSquareAttacked((int)d1, Black))
                         AddMove(ref moveList, EncodeMove((int)e1, (int)c1, piece, 0, 0, 0, 0, 1));
                 }
             }
@@ -110,7 +119,7 @@ public static class MoveGenerator
                         sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
                         targetSquare = sourceSquare + 8;
 
-                        if (!(targetSquare > (int)h1) && !BitboardOperations.GetBit(occupancies[(int)both], targetSquare))
+                        if (!(targetSquare > (int)h1) && !BitboardOperations.GetBit(bothOcc, targetSquare))
                         {
                             // pawn promotion
                             if (sourceSquare >= (int)a2 && sourceSquare <= (int)h2)
@@ -126,12 +135,12 @@ public static class MoveGenerator
                                 AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 0, 0, 0, 0));
 
                                 // double pawn move
-                                if (sourceSquare >= (int)a7 && sourceSquare <= (int)h7 && !BitboardOperations.GetBit(occupancies[(int)both], targetSquare + 8))
+                                if (sourceSquare >= (int)a7 && sourceSquare <= (int)h7 && !BitboardOperations.GetBit(bothOcc, targetSquare + 8))
                                     AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare + 8, piece, 0, 0, 1, 0, 0));
                             }
                         }
 
-                        attacks = pawnAttacks[side, sourceSquare] & occupancies[(int)white];
+                        attacks = pawnAttacks[side, sourceSquare] & occupancies[White];
                         while (attacks != 0)
                         {
                             targetSquare = BitboardOperations.GetLs1bIndex(attacks);
@@ -163,27 +172,27 @@ public static class MoveGenerator
 
                 if (piece == k)
                 {
-                    if ((castle & (int)bk) != 0 && !BitboardOperations.GetBit(occupancies[(int)both], (int)f8) && !BitboardOperations.GetBit(occupancies[(int)both], (int)g8) && !IsSquareAttacked((int)e8, (int)white) && !IsSquareAttacked((int)f8, (int)white))
+                    if ((castle & (int)bk) != 0 && !BitboardOperations.GetBit(bothOcc, (int)f8) && !BitboardOperations.GetBit(bothOcc, (int)g8) && !IsSquareAttacked((int)e8, White) && !IsSquareAttacked((int)f8, White))
                         AddMove(ref moveList, EncodeMove((int)e8, (int)g8, piece, 0, 0, 0, 0, 1));
 
-                    if ((castle & (int)bq) != 0 && !BitboardOperations.GetBit(occupancies[(int)both], (int)d8) && !BitboardOperations.GetBit(occupancies[(int)both], (int)c8) && !BitboardOperations.GetBit(occupancies[(int)both], (int)b8) && !IsSquareAttacked((int)e8, (int)white) && !IsSquareAttacked((int)d8, (int)white))
+                    if ((castle & (int)bq) != 0 && !BitboardOperations.GetBit(bothOcc, (int)d8) && !BitboardOperations.GetBit(bothOcc, (int)c8) && !BitboardOperations.GetBit(bothOcc, (int)b8) && !IsSquareAttacked((int)e8, White) && !IsSquareAttacked((int)d8, White))
                         AddMove(ref moveList, EncodeMove((int)e8, (int)c8, piece, 0, 0, 0, 0, 1));
                 }
             }
 
-            if ((side == (int)white) ? piece == N : piece == n)
+            if ((side == White) ? piece == N : piece == n)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = knightAttacks[sourceSquare] & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = knightAttacks[sourceSquare] & notFriendly;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
 
                         // quite move
-                        if (!BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
+                        if (!BitboardOperations.GetBit(enemyOcc, targetSquare))
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 0, 0, 0, 0));
 
                         // capture move
@@ -197,18 +206,18 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == B : piece == b)
+            if ((side == White) ? piece == B : piece == b)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = GetBishopAttacks(sourceSquare, occupancies[(int)both]) & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = GetBishopAttacks(sourceSquare, bothOcc) & notFriendly;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
 
-                        if (!BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
+                        if (!BitboardOperations.GetBit(enemyOcc, targetSquare))
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 0, 0, 0, 0));
                         else
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
@@ -220,18 +229,18 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == R : piece == r)
+            if ((side == White) ? piece == R : piece == r)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = GetRookAttacks(sourceSquare, occupancies[(int)both]) & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = GetRookAttacks(sourceSquare, bothOcc) & notFriendly;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
 
-                        if (!BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
+                        if (!BitboardOperations.GetBit(enemyOcc, targetSquare))
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 0, 0, 0, 0));
                         else
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
@@ -243,18 +252,18 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == Q : piece == q)
+            if ((side == White) ? piece == Q : piece == q)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = GetQueenAttacks(sourceSquare, occupancies[(int)both]) & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = GetQueenAttacks(sourceSquare, bothOcc) & notFriendly;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
 
-                        if (!BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
+                        if (!BitboardOperations.GetBit(enemyOcc, targetSquare))
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 0, 0, 0, 0));
                         else
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
@@ -266,18 +275,18 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == K : piece == k)
+            if ((side == White) ? piece == K : piece == k)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = kingAttacks[sourceSquare] & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = kingAttacks[sourceSquare] & notFriendly;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
 
-                        if (!BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
+                        if (!BitboardOperations.GetBit(enemyOcc, targetSquare))
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 0, 0, 0, 0));
                         else
                             AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
@@ -297,11 +306,17 @@ public static class MoveGenerator
         int sourceSquare, targetSquare;
         ulong bitboard, attacks;
 
+        bool isWhite = side == White;
+        ulong friendlyOcc = isWhite ? occupancies[White] : occupancies[Black];
+        ulong enemyOcc = isWhite ? occupancies[Black] : occupancies[White];
+        ulong bothOcc = occupancies[Both];
+        ulong notFriendly = ~friendlyOcc;
+
         for (int piece = P; piece <= k; piece++)
         {
             bitboard = bitboards[piece];
 
-            if (side == (int)white)
+            if (side == White)
             {
                 if (piece == P)
                 {
@@ -309,7 +324,7 @@ public static class MoveGenerator
                     {
                         sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
 
-                        attacks = pawnAttacks[side, sourceSquare] & occupancies[(int)black];
+                        attacks = pawnAttacks[side, sourceSquare] & occupancies[Black];
 
                         while (attacks != 0)
                         {
@@ -349,7 +364,7 @@ public static class MoveGenerator
                     {
                         sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
 
-                        attacks = pawnAttacks[side, sourceSquare] & occupancies[(int)white];
+                        attacks = pawnAttacks[side, sourceSquare] & occupancies[White];
                         while (attacks != 0)
                         {
                             targetSquare = BitboardOperations.GetLs1bIndex(attacks);
@@ -380,21 +395,17 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == N : piece == n)
+            if ((side == White) ? piece == N : piece == n)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = knightAttacks[sourceSquare] & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = knightAttacks[sourceSquare] & enemyOcc;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
-
-                        // capture move only
-                        if (BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
-                            AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
-
+                        AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
                         BitboardOperations.PopBit(ref attacks, targetSquare);
                     }
 
@@ -402,21 +413,17 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == B : piece == b)
+            if ((side == White) ? piece == B : piece == b)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = GetBishopAttacks(sourceSquare, occupancies[(int)both]) & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = GetBishopAttacks(sourceSquare, bothOcc) & enemyOcc;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
-
-                        // capture move only
-                        if (BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
-                            AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
-
+                        AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
                         BitboardOperations.PopBit(ref attacks, targetSquare);
                     }
 
@@ -424,21 +431,17 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == R : piece == r)
+            if ((side == White) ? piece == R : piece == r)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = GetRookAttacks(sourceSquare, occupancies[(int)both]) & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = GetRookAttacks(sourceSquare, bothOcc) & enemyOcc;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
-
-                        // capture move only
-                        if (BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
-                            AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
-
+                        AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
                         BitboardOperations.PopBit(ref attacks, targetSquare);
                     }
 
@@ -446,21 +449,17 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == Q : piece == q)
+            if ((side == White) ? piece == Q : piece == q)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = GetQueenAttacks(sourceSquare, occupancies[(int)both]) & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = GetQueenAttacks(sourceSquare, bothOcc) & enemyOcc;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
-
-                        // capture move only
-                        if (BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
-                            AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
-
+                        AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
                         BitboardOperations.PopBit(ref attacks, targetSquare);
                     }
 
@@ -468,21 +467,17 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == (int)white) ? piece == K : piece == k)
+            if ((side == White) ? piece == K : piece == k)
             {
                 while (bitboard != 0)
                 {
                     sourceSquare = BitboardOperations.GetLs1bIndex(bitboard);
-                    attacks = kingAttacks[sourceSquare] & ((side == (int)white) ? ~occupancies[(int)white] : ~occupancies[(int)black]);
+                    attacks = kingAttacks[sourceSquare] & enemyOcc;
 
                     while (attacks != 0)
                     {
                         targetSquare = BitboardOperations.GetLs1bIndex(attacks);
-
-                        // capture move only
-                        if (BitboardOperations.GetBit((side == (int)white) ? occupancies[(int)black] : occupancies[(int)white], targetSquare))
-                            AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
-
+                        AddMove(ref moveList, EncodeMove(sourceSquare, targetSquare, piece, 0, 1, 0, 0, 0));
                         BitboardOperations.PopBit(ref attacks, targetSquare);
                     }
 
@@ -534,7 +529,7 @@ public static class MoveGenerator
             {
                 int startPiece, endPiece;
 
-                if (side == (int)white)
+                if (side == White)
                 {
                     startPiece = p;
                     endPiece = k;
@@ -560,7 +555,7 @@ public static class MoveGenerator
             int promotedPiece = GetMovePromoted(move);
             if (promotedPiece != 0)
             {
-                if (side == (int)white)
+                if (side == White)
                 {
                     BitboardOperations.PopBit(ref bitboards[P], targetSquare);
                     Zobrist.hashKey ^= Zobrist.pieceKeys[P, targetSquare];  // remove pawn from target square in hash key
@@ -578,7 +573,7 @@ public static class MoveGenerator
             if (GetMoveEnpassant(move) != 0)
             {
                 // white to move
-                if (side == (int)white)
+                if (side == White)
                 {
                     // remove captured pawn
                     BitboardOperations.PopBit(ref bitboards[p], targetSquare + 8);
@@ -601,7 +596,7 @@ public static class MoveGenerator
             int doublePush = GetMoveDouble(move);
             if (doublePush != 0)
             {
-                if (side == (int)white)
+                if (side == White)
                 {
                     enPassant = targetSquare + 8;
 
@@ -661,7 +656,7 @@ public static class MoveGenerator
             side ^= 1;
             Zobrist.hashKey ^= Zobrist.sideKey;
 
-            int kingSquare = (side == (int)white)
+            int kingSquare = (side == White)
                 ? BitboardOperations.GetLs1bIndex(bitboards[k])
                 : BitboardOperations.GetLs1bIndex(bitboards[K]);
 

@@ -1,6 +1,6 @@
 using static CastlingRights;
-using static Side;
 using static Square;
+using static MoveGenerator;
 
 public static class Board
 {
@@ -83,7 +83,7 @@ public static class Board
             else if (c == ' ')
             {
                 i++;
-                side = (fen[i] == 'w') ? (int)white : (int)black;
+                side = (fen[i] == 'w') ? White : Black;
                 i += 2;
 
                 while (fen[i] != ' ')
@@ -122,12 +122,12 @@ public static class Board
     public static void UpdateOccupancies()
     {
         for (int piece = P; piece <= K; piece++)
-            occupancies[(int)white] |= bitboards[piece];
+            occupancies[White] |= bitboards[piece];
 
         for (int piece = p; piece <= k; piece++)
-            occupancies[(int)black] |= bitboards[piece];
+            occupancies[Black] |= bitboards[piece];
 
-        occupancies[(int)both] = occupancies[(int)white] | occupancies[(int)black];
+        occupancies[Both] = occupancies[White] | occupancies[Black];
     }
 
     public static BoardState CopyBoard()
