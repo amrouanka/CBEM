@@ -40,7 +40,7 @@ public static class MoveGenerator
 
             if (bitboard == 0) continue;
 
-            if (side == White)
+            if (isWhite)
             {
                 if (piece == P)
                 {
@@ -182,7 +182,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == N : piece == n)
+            if (isWhite ? piece == N : piece == n)
             {
                 while (bitboard != 0)
                 {
@@ -208,7 +208,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == B : piece == b)
+            if (isWhite ? piece == B : piece == b)
             {
                 while (bitboard != 0)
                 {
@@ -231,7 +231,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == R : piece == r)
+            if (isWhite ? piece == R : piece == r)
             {
                 while (bitboard != 0)
                 {
@@ -254,7 +254,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == Q : piece == q)
+            if (isWhite ? piece == Q : piece == q)
             {
                 while (bitboard != 0)
                 {
@@ -277,7 +277,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == K : piece == k)
+            if (isWhite ? piece == K : piece == k)
             {
                 while (bitboard != 0)
                 {
@@ -320,7 +320,7 @@ public static class MoveGenerator
 
             if (bitboard == 0) continue;
 
-            if (side == White)
+            if (isWhite)
             {
                 if (piece == P)
                 {
@@ -399,7 +399,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == N : piece == n)
+            if (isWhite ? piece == N : piece == n)
             {
                 while (bitboard != 0)
                 {
@@ -417,7 +417,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == B : piece == b)
+            if (isWhite ? piece == B : piece == b)
             {
                 while (bitboard != 0)
                 {
@@ -435,7 +435,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == R : piece == r)
+            if (isWhite ? piece == R : piece == r)
             {
                 while (bitboard != 0)
                 {
@@ -453,7 +453,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == Q : piece == q)
+            if (isWhite ? piece == Q : piece == q)
             {
                 while (bitboard != 0)
                 {
@@ -471,7 +471,7 @@ public static class MoveGenerator
                 }
             }
 
-            if ((side == White) ? piece == K : piece == k)
+            if (isWhite ? piece == K : piece == k)
             {
                 while (bitboard != 0)
                 {
@@ -499,6 +499,8 @@ public static class MoveGenerator
 
     public static int MakeMove(int move, int moveFlag)
     {
+        bool isWhite = side == White;
+
         // Remove the old en passant from hash (if it existed)
         if (enPassant != (int)noSquare)
             Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
@@ -531,25 +533,16 @@ public static class MoveGenerator
 
             if (capture != 0)
             {
-                int startPiece, endPiece;
+                // Pawns are most common capture target — check first
+                int[] searchOrder = isWhite
+                    ? new[] { p, n, b, r, q }   // black pieces, pawn first
+                    : new[] { P, N, B, R, Q };  // white pieces, pawn first
 
-                if (side == White)
-                {
-                    startPiece = p;
-                    endPiece = k;
-                }
-                else
-                {
-                    startPiece = P;
-                    endPiece = K;
-                }
-
-                for (int bbPiece = startPiece; bbPiece <= endPiece; bbPiece++)
+                foreach (int bbPiece in searchOrder)
                 {
                     if (BitboardOperations.GetBit(bitboards[bbPiece], targetSquare))
                     {
                         BitboardOperations.PopBit(ref bitboards[bbPiece], targetSquare);
-
                         Zobrist.hashKey ^= Zobrist.pieceKeys[bbPiece, targetSquare];
                         break;
                     }
@@ -559,7 +552,7 @@ public static class MoveGenerator
             int promotedPiece = GetMovePromoted(move);
             if (promotedPiece != 0)
             {
-                if (side == White)
+                if (isWhite)
                 {
                     BitboardOperations.PopBit(ref bitboards[P], targetSquare);
                     Zobrist.hashKey ^= Zobrist.pieceKeys[P, targetSquare];  // remove pawn from target square in hash key
@@ -577,7 +570,7 @@ public static class MoveGenerator
             if (GetMoveEnpassant(move) != 0)
             {
                 // white to move
-                if (side == White)
+                if (isWhite)
                 {
                     // remove captured pawn
                     BitboardOperations.PopBit(ref bitboards[p], targetSquare + 8);
@@ -600,7 +593,7 @@ public static class MoveGenerator
             int doublePush = GetMoveDouble(move);
             if (doublePush != 0)
             {
-                if (side == White)
+                if (isWhite)
                 {
                     enPassant = targetSquare + 8;
 
@@ -660,9 +653,9 @@ public static class MoveGenerator
             side ^= 1;
             Zobrist.hashKey ^= Zobrist.sideKey;
 
-            int kingSquare = (side == White)
-                ? BitboardOperations.GetLs1bIndex(bitboards[k])
-                : BitboardOperations.GetLs1bIndex(bitboards[K]);
+            int kingSquare = isWhite
+                ? BitboardOperations.GetLs1bIndex(bitboards[K])
+                : BitboardOperations.GetLs1bIndex(bitboards[k]);
 
             if (IsSquareAttacked(kingSquare, side))
             {
