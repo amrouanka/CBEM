@@ -75,6 +75,34 @@ public static class Search
         return false;
     }
 
+    private const int MateThreshold = MateScore - MaxPly;
+
+    // True if this score represents a forced mate rather than a normal cp eval
+    private static bool IsMateScore(int score)
+    {
+        return Math.Abs(score) >= MateThreshold;
+    }
+
+    // Convert internal mate score to UCI "mate N"
+    // Positive = side to move is mating
+    // Negative = side to move is getting mated
+    private static int ScoreToMate(int score)
+    {
+        if (score > 0)
+            return (MateScore - score + 1) / 2;   // mate in N moves
+
+        return -(MateScore + score) / 2;          // mated in N moves
+    }
+
+    // Format score exactly how UCI GUIs expect it
+    private static string FormatUciScore(int score)
+    {
+        return IsMateScore(score)
+            ? $"mate {ScoreToMate(score)}"
+            : $"cp {score}";
+    }
+
+
     // ═════════════════════════════════════════════
     //  SearchPosition  –  iterative deepening entry
     // ═════════════════════════════════════════════
@@ -148,7 +176,7 @@ public static class Search
             // ── UCI info output ───────────────────
             if (!Program.debug)
             {
-                Console.Write($"info score cp {score} depth {currentDepth} nodes {nodes} pv ");
+                Console.Write($"info score {FormatUciScore(score)} depth {currentDepth} nodes {nodes} pv ");
                 for (int i = 0; i < pvLength[0]; i++)
                     Console.Write($"{GetMove(pvTable[0, i])} ");
                 Console.WriteLine();

@@ -74,19 +74,31 @@ class Program
         "e6e5", "Pawn move to trap the bishop in the middle of the board — e5"),
 
         ("r4rk1/pp1n1p1p/1nqP2p1/2b1P1B1/4NQ2/1B3P2/PP2K2P/2R5 w - - 0 1",
-        "c1c5", "Rook sac to deflect knight away from king — Rxc5"),
+        "c1c5", "Nolot #2 — Rxc5"),
 
         ("r2qk2r/ppp1b1pp/2n1p3/3pP1n1/3P2b1/2PB1NN1/PP4PP/R1BQK2R w KQkq - 0 1",
-        "f3g5", "Queen sac to attack king with minor pieces — Nxg5"),
+        "f3g5", "Nolot #3 — Nxg5"),
 
         ("r1b1kb1r/1p1n1ppp/p2ppn2/6BB/2qNP3/2N5/PPP2PPP/R2Q1RK1 w kq - 0 1",
-        "d4e6", "Knight sac to gain positional adv while king in the middle — Nxe6"),
+        "d4e6", "Nolot #4 — Nxe6"),
 
         ("r2qrb1k/1p1b2p1/p2ppn1p/8/3NP3/1BN5/PPP3QP/1K3RR1 w - - 0 1",
-        "e4e5", "Pawn clearance sac — e5"),
+        "e4e5", "Nolot #5 — e5"),
 
         ("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
         "c3d5", "Knight pressure pinned knight and attack the queen — Nd5"),
+
+        ("1r1bk2r/2R2ppp/p3p3/1b2P2q/4QP2/4N3/1B4PP/3R2K1 w k - 0 1",
+        "d1d8", "Nolot #7 — Rxd8"),
+
+        ("r1b2rk1/1p1nbppp/pq1p4/3B4/P2NP3/2N1p3/1PP3PP/R2Q1R1K w - - 0 1",
+        "f1f7", "Nolot #10 — Rxf7"),
+
+        ("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+        "g6h6", "Nolot #11 — Rxh6"),
+
+        ("r1bn2k1/p2p2P1/2p1r2P/1p2p3/2BqPn2/1P6/P1PP4/1K4R1 w - - 1 5",
+        "h6h7", "Nolot #11 (follow-up) — h7+"),
     };
 
     // Debug mode variable
