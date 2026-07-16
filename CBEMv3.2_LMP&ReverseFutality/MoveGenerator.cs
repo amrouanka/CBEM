@@ -511,14 +511,18 @@ public static class MoveGenerator
         {
             BoardState state = CopyBoard();
 
+            int piece = GetMovePiece(move);
+            int capture = GetMoveCapture(move);
+
+            // 50-move rule clock:
+            // reset on pawn move or capture, otherwise increment
+            if (piece == P || piece == p || capture != 0)
+                halfmoveClock = 0;
+            else
+                halfmoveClock++;
+
             int sourceSquare = GetMoveSource(move);
             int targetSquare = GetMoveTarget(move);
-            int piece = GetMovePiece(move);
-            int promotedPiece = GetMovePromoted(move);
-            int capture = GetMoveCapture(move);
-            int doublePush = GetMoveDouble(move);
-            int enpass = GetMoveEnpassant(move);
-            int castling = GetMoveCastling(move);
 
             BitboardOperations.PopBit(ref bitboards[piece], sourceSquare);
             BitboardOperations.SetBit(ref bitboards[piece], targetSquare);
@@ -553,6 +557,7 @@ public static class MoveGenerator
                 }
             }
 
+            int promotedPiece = GetMovePromoted(move);
             if (promotedPiece != 0)
             {
                 if (side == (int)white)
@@ -570,7 +575,7 @@ public static class MoveGenerator
                 Zobrist.hashKey ^= Zobrist.pieceKeys[promotedPiece, targetSquare];  // add promoted piece to target square in hash key
             }
 
-            if (enpass != 0)
+            if (GetMoveEnpassant(move) != 0)
             {
                 // white to move
                 if (side == (int)white)
@@ -593,6 +598,7 @@ public static class MoveGenerator
                 }
             }
 
+            int doublePush = GetMoveDouble(move);
             if (doublePush != 0)
             {
                 if (side == (int)white)
@@ -611,7 +617,7 @@ public static class MoveGenerator
                 }
             }
 
-            if (castling != 0)
+            if (GetMoveCastling(move) != 0)
             {
                 switch ((Square)targetSquare)
                 {

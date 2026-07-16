@@ -69,9 +69,21 @@ public static class Search
 
     private static bool IsRepetition()
     {
-        for (int i = repetitionIndex - 3; i >= 0; i -= 2)
+        // No earlier reversible history to compare against
+        if (repetitionIndex < 3)
+            return false;
+
+        // Current position is at repetitionIndex - 1.
+        // A repetition cannot go back beyond the last pawn move or capture,
+        // so only search within the last halfmoveClock plies.
+        int earliest = Math.Max(0, repetitionIndex - 1 - halfmoveClock);
+
+        for (int i = repetitionIndex - 3; i >= earliest; i -= 2)
+        {
             if (repetitionTable[i] == Zobrist.hashKey)
                 return true;
+        }
+
         return false;
     }
 
@@ -238,6 +250,9 @@ public static class Search
         // ── Draw detection ────────────────────────
         if (ply > 0 && IsRepetition()) return 0;
 
+        // ── 50-move rule ──────────────────────────
+        if (halfmoveClock >= 100) return 0;
+
         // ── In-check detection ────────────────────
         int kSq = (side == (int)Side.white)
                     ? BitboardOperations.GetLs1bIndex(bitboards[K])
@@ -289,6 +304,8 @@ public static class Search
 
             Zobrist.hashKey ^= Zobrist.sideKey;
             side ^= 1;
+            halfmoveClock++;
+
             if (enPassant != (int)Square.noSquare)
             {
                 Zobrist.hashKey ^= Zobrist.enpassantKeys[enPassant];
@@ -484,6 +501,9 @@ public static class Search
 
         // ── Depth safety ──────────────────────────
         if (ply >= MaxPly - 1) return Evaluation.Evaluate();
+
+        // ── 50-move rule ──────────────────────────
+        if (halfmoveClock >= 100) return 0;
 
         nodes++;
 

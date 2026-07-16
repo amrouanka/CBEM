@@ -48,4 +48,5 @@ public struct BoardState
     public int enPassant;
     public int castle;
     public ulong hashKey;
+    public int halfmoveClock;
 }

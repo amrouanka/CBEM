@@ -47,6 +47,7 @@ public static class Board
     public static int side;
     public static int enPassant = (int)noSquare;
     public static int castle;
+    public static int halfmoveClock = 0;
 
     public static void ParseFEN(string fen)
     {
@@ -56,6 +57,7 @@ public static class Board
         side = 0;
         enPassant = (int)noSquare;
         castle = 0;
+        halfmoveClock = 0;
 
         int rank = 0, file = 0;
 
@@ -107,6 +109,12 @@ public static class Board
             }
         }
 
+        string[] parts = fen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 4 && int.TryParse(parts[4], out int hm))
+            halfmoveClock = hm;
+        else
+            halfmoveClock = 0;
+
         UpdateOccupancies();
         Zobrist.hashKey = Zobrist.GenerateHashKey();
     }
@@ -132,6 +140,7 @@ public static class Board
             enPassant = enPassant,
             castle = castle,
             hashKey = Zobrist.hashKey,
+            halfmoveClock = halfmoveClock
         };
     }
 
@@ -143,6 +152,7 @@ public static class Board
         enPassant = state.enPassant;
         castle = state.castle;
         Zobrist.hashKey = state.hashKey;
+        halfmoveClock = state.halfmoveClock;
     }
 
     public static void PrintBoard()
