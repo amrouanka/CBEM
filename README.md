@@ -8,7 +8,7 @@ CBEM (Chess Bitboard Engine Manager) is an educational chess engine project that
 
 ## Project Structure
 
-The project is organized into multiple version, each building upon the previous one with additional features:
+The project is organized into multiple versions, each building upon the previous one with additional features:
 
 ### CBEMv1.0_AlphaPruning
 - **Core Features**: Basic chess engine with alpha-beta pruning
@@ -26,130 +26,141 @@ The project is organized into multiple version, each building upon the previous 
   - More accurate evaluation in complex positions
   - Enhanced search depth handling
 
-### CBEMv1.2_SimpleOrdering1
+### CBEMv1.2_MVVLVA
 - **Advanced Features**: Implements simple move ordering using MVVLVA (Most Valuable Victim - Least Valuable Attacker)
-- **Status**: Implemented with basic capture move ordering
-- **Current Features**:
+- **Improvements**:
   - MVVLVA-based capture move ordering for better move prioritization
-  - Array.Sort implementation for efficient move sorting
+  - More efficient move sorting for capture selection
   - Enhanced alpha-beta pruning efficiency through better move ordering
   - Improved search performance by trying promising captures first
 
-### CBEMv1.3_SimpleOrdering2
+### CBEMv1.3_MoveOrdering
 - **Advanced Features**: Enhanced move ordering with killer moves and history heuristic
 - **Improvements**:
-  - Killer move tracking (2 slots per ply) for non-capture beta cutoffs
-  - History table for quiet move ordering based on past effectiveness
-  - Cached scoring optimization to eliminate repeated ScoreMove() calls during sorting
+  - Killer move tracking for non-capture beta cutoffs
+  - History heuristic for quiet move ordering based on past effectiveness
+  - Cached score values to avoid repeated move scoring during sorting
   - Proper move ordering hierarchy: captures > killer moves > history
   - Significant search speed improvements through better move prioritization
 
-### CBEMv1.4_IteretiveDeep
+### CBEMv1.4_IterativeDeepening
 - **Advanced Features**: Principal Variation (PV) table and iterative deepening framework
 - **Improvements**:
   - PV table for storing and displaying full search variations
-  - Enhanced UCI output with full Principal Variation line
-  - Foundation for iterative deepening search algorithm
+  - Enhanced UCI output with Principal Variation lines
+  - Iterative deepening search for progressively deeper analysis
   - Improved move ordering through PV tracking
   - Better analysis capabilities with complete move sequences
 
-### CBEMv1.5_SimpleEvaluation
+### CBEMv1.5_PestoEval
 - **Advanced Features**: PESTO (Piece-Square Table) evaluation system with tapered evaluation
 - **Improvements**:
-  - Comprehensive PESTO evaluation tables for all piece types (pawn, knight, bishop, rook, queen, king)
-  - Tapered evaluation blending middlegame and endgame scores based on game phase
-  - Separate middlegame and endgame piece-square tables for accurate position assessment
+  - Comprehensive PESTO evaluation tables for all piece types
+  - Tapered evaluation blending middlegame and endgame scores
+  - Separate middlegame and endgame piece-square tables for more accurate position assessment
   - Game phase calculation for proper evaluation weighting
-  - Significantly improved evaluation accuracy (~±1 centipawn for standard positions)
-  - Modern C# array initialization syntax and proper bitboard integration
-
-### CBEMv1.6_LateMoveReduction
-- **Advanced Features**: Late Move Reduction (LMR) with enhanced search optimization
-- **Improvements**:
-  - LMR algorithm to reduce search depth for less promising moves
-  - Dynamic reduction based on move count and search depth
-  - Enhanced move ordering with improved PV scoring
-  - Optimized bitboard operations for faster piece detection
-  - Improved move sorting with insertion sort for small move lists
-  - Better cache utilization through optimized data structures
-  - Enhanced alpha-beta cutoff efficiency
+  - Improved evaluation precision and board assessment
 
 ### CBEMv2.0_LMR&DeltaPruning
-- **Advanced Features**: Comprehensive search optimization with LMR and Delta Pruning
+- **Advanced Features**: Search optimization with Late Move Reduction (LMR) and Delta Pruning
 - **Major Optimizations**:
-  - **Enhanced LMR Logic**: Dynamic reduction calculation with safety checks and depth capping
-  - **Delta Pruning**: Skip unpromising captures in quiescence search using piece value evaluation
-  - **Move Scoring Optimization**: O(1) piece detection replacing O(n) bitboard loops
-  - **PV Table Optimization**: Efficient Array.Copy operations for better cache performance
-  - **Check Detection Caching**: Cached king positions to avoid redundant calculations
-  - **Improved Move Sorting**: Optimized insertion sort for small move lists
-  - **Enhanced Quiescence Search**: Better pruning with capture value estimation
+  - **LMR**: Reduce search depth for less promising moves while preserving quality
+  - **Delta Pruning**: Skip unpromising captures in quiescence search using a value margin
+  - **Move Scoring Optimization**: O(1) piece detection replacing slower bitboard loops
+  - **PV Table Optimization**: Efficient data copying for better cache performance
+  - **Check Detection Caching**: Avoid redundant king lookups during search
+  - **Improved Move Sorting**: Better ordering for early alpha-beta cutoffs
 - **Performance Improvements**:
-  - Reduced computational complexity in critical search paths
-  - Better cache locality and memory access patterns
-  - Enhanced pruning to reduce search tree size
-  - Improved move ordering for earlier alpha-beta cutoffs
-  - Optimized data structures for faster access
+  - Reduced search tree size and node counts
+  - Better cache locality and memory efficiency
+  - Improved pruning and move ordering for higher search speed
+
+### CBEMv2.1_UCI
+- **Advanced Features**: Full UCI integration with time management and GUI-ready command handling
+- **Improvements**:
+  - Full UCI position and go command parsing
+  - Move time, increment, and clock handling for practical GUI play
+  - Stable UCI loop with new game reset behavior
+  - Expanded debug/test driver with node-count benchmarking for multiple positions
+  - Better integration with chess GUIs and tournament-style search control
 
 ### CBEMv2.2_NullMove
-- **Advanced Features**: Comprehensive search optimization with null move pruning and aggressive pruning techniques
+- **Advanced Features**: Null move pruning with aggressive search pruning
 - **Major Optimizations**:
-  - **Null Move Pruning**: Beta cutoff detection using reduced depth searches (R = 2)
-  - **Enhanced LMR Logic**: Aggressive reduction formula `1 + (movesSearched / 3) + (depth / 4)` with 4-ply cap
-  - **Improved Delta Pruning**: Tightened margin to +10 for more aggressive capture pruning
-  - **Futility Pruning**: Skip hopeless positions at shallow depths (≤ 3) with margin `depth * 150`
-  - **Optimized Search Parameters**: Tuned for minimal node count while maintaining accuracy
+  - **Null Move Pruning**: Beta cutoff detection from reduced-depth search
+  - **Enhanced LMR Logic**: Aggressive reduction formula with depth cap
+  - **Futility Pruning**: Skip hopeless shallow positions with a depth-dependent margin
+  - **Delta Pruning**: Improve quiescence search efficiency with tighter capture filtering
 - **Performance Improvements**:
-  - **50-80% node reduction** across all test positions
-  - **Extreme cases**: Some positions reduced from ~450K to ~17K nodes (96% reduction)
-  - **Consistent gains**: Most positions show significant speed improvements
-  - **Maintained quality**: Search accuracy preserved while achieving dramatic speed gains
-- **Technical Details**:
-  - Null move reduction carefully balanced (R = 2 optimal, R = 3 causes stack overflow)
-  - LMR parameters tuned through extensive testing for optimal node reduction
-  - Futility pruning applied only in safe conditions (shallow depth, not in check)
-  - Delta pruning optimized for quiescence search efficiency
+  - Substantially reduced search nodes across test positions
+  - Improved pruning while maintaining move quality
+  - More aggressive but safe search pruning in non-check positions
 
 ### CBEMv2.3_AspirationWindows
-- **Advanced Features**: Aspiration windows implementation with known limitations
+- **Advanced Features**: Aspiration window search with tuned move ordering
 - **Major Optimizations**:
-  - **Aspiration Windows**: Dynamic search windows around expected scores to reduce search space
-  - **Optimized Window Size**: ±35 point window provides best balance between cutoffs and restarts
-  - **Fine-Tuned LMR**: Extremely aggressive reduction formula `1 + (movesSearched / 1) + (depth / 2)` with 7-ply cap
-  - **Optimal LMR Parameters**: fullDepthMoves = 2, reductionLimit = 3 for deep searches
-  - **Enhanced Move Ordering**: Killer moves and history heuristic with capture filtering
-  - **Comprehensive Testing**: Extensive parameter tuning across multiple test positions
+  - **Aspiration Windows**: Narrow search windows around expected scores
+  - **Restart Logic**: Widen windows only when needed
+  - **Aggressive LMR**: Greater reductions for deeper move sequences
+  - **Killer/History Ordering**: Better quiet move prioritization with capture filtering
 - **Performance Impact**:
-  - **Theoretical improvements**: 15% additional node reduction over v2.2 baseline with increased search depths
-  - **Practical reality**: Without transposition tables, the engine performs worse than v2.2 due to aspiration window inefficiencies
-  - **Recommendation**: Use v3.0 for best performance with transposition tables and aspiration windows
-- **Technical Details**:
-  - Aspiration window restart logic handles score falls outside window but causes depth skipping
-  - LMR reduction carefully balanced to avoid search instability
-  - Capture checks in killer moves maintained for theoretical correctness
-  - Parameters extensively tested but limited by lack of transposition table support
+  - Added node reduction when window accuracy is good
+  - Increased depth efficiency in many positions
+  - Practical limitations without transposition support
 
 ### CBEMv3.0_TranspositionTables
-- **Advanced Features**: Transposition table implementation with repetition detection and enhanced time management
+- **Advanced Features**: Transposition tables and repetition detection
 - **Major Optimizations**:
-  - **Transposition Table**: 64MB hash table with replacement strategy for storing search results
-  - **Repetition Detection**: Threefold repetition detection using position history tracking
-  - **Enhanced Aspiration Windows**: Now fully functional with transposition table support
-  - **Improved Time Management**: Safer time allocation with reserves and overhead handling
-  - **Zobrist Hashing**: Efficient position hashing for transposition table lookups
-  - **UCI Protocol Enhancements**: Better position parsing and game state management
+  - **Transposition Table**: Cache search results for repeated positions
+  - **Zobrist Hashing**: Fast, unique position keys for lookup
+  - **Threefold Repetition Detection**: Reliable draw handling
+  - **Improved Time Management**: Safer move time and overhead handling
+  - **UCI Enhancements**: Better state handling and protocol support
 - **Performance Improvements**:
-  - **30-50% additional node reduction** through transposition table hits
-  - **Effective aspiration windows**: No longer cause search restarts or depth skipping
-  - **Better time utilization**: Improved time management prevents time losses
-  - **Draw detection**: Proper threefold repetition detection for correct game termination
+  - Significant node reduction through cache hits
+  - Effective aspiration windows with transposition support
+  - Better time control and stability in GUI play
+
+### CBEMv3.5_Stable
+- **Advanced Features**: Stable production-quality search with full UCI and repetition support
+- **Improvements**:
+  - Full transposition table integration with replacement strategy
+  - Robust UCI time control handling and new game resets
+  - Stable move ordering, null move, and delta pruning
+  - Extensive debug/test harness for deep search benchmarking
+- **Performance Improvements**:
+  - Reliable search behavior on deeper tactical and strategic positions
+  - Balanced pruning with move ordering to reduce pathological cases
+  - Improved command-line and GUI compatibility
+
+### CBEMv3.6_RFPOrdering
+- **Advanced Features**: Refined move ordering with relative futility pruning (RFP)
+- **Improvements**:
+  - **Relative Futility Pruning**: Static evaluation margin pruning before search
+  - **Aspiration Windows**: Narrow-window search with retry logic
+  - **Transposition Table**: Cached node reuse for repeated positions
+  - **Repetition Detection**: Threefold draw detection during iterative search
+  - **UCI Time Management**: Practical clock and increment handling
+- **Performance Improvements**:
+  - Better move ordering and earlier cutoffs
+  - Lower node counts for quiet and tactical positions
+  - Improved stability in longer searches
+
+### CBEMv3.7_OptimizedBoardState
+- **Advanced Features**: Explicit board-state struct and optimized move execution
+- **Major Optimizations**:
+  - `Board.CopyBoard()` and `Board.TakeBack()` now use explicit field copies instead of array cloning
+  - `UpdateOccupancies()` computes piece occupancies directly from explicit bitboards
+  - `MakeMove()` capture handling simplified with a direct piece search loop
+  - Tactical test runner and perft handling updated for better debug consistency
+- **Performance Improvements**:
+  - Lower allocation overhead during search and move make/unmake
+  - Faster backtracking through explicit board-state fields
+  - Reduced array manipulation and improved search iteration throughput
 - **Technical Details**:
-  - Transposition table stores depth, score, flag, and best move for each position
-  - Replacement strategy prioritizes deeper searches and more recent entries
-  - Repetition history tracks up to 1000 positions with efficient indexing
-  - Time management includes 5% reserve and 30-50ms overhead buffers
-  - Hash table cleared only on "ucinewgame" command for proper game state
-  - Modern C# syntax improvements (collection expressions, simplified parsing)
+  - `BoardState` struct expanded with `bb0..bb11`, `occ0..occ2`, and `hashKey`
+  - `v3.7-optimized-board-state.csproj` uses `RootNamespace` `v3.7-optimized-board-state`
+  - Builds on transposition, repetition, and time management features with improved state handling
 
 ## Technical Architecture
 
@@ -191,37 +202,43 @@ The project is organized into multiple version, each building upon the previous 
 
 2. **Build a specific version**:
    ```bash
-   dotnet build CBEMv1.0_AlphaPruning/CBEMv1.0_AlphaPruning.csproj
+   dotnet build v1.0-alpha-beta/v1.0-alpha-beta.csproj
    # or
-   dotnet build CBEMv1.1_QuiescenceSearch/CBEMv1.1_QuiescenceSearch.csproj
+   dotnet build v1.1-quiescence/v1.1-quiescence.csproj
    # or
-   dotnet build CBEMv1.2_SimpleOrdering1/CBEMv1.2_SimpleOrdering1.csproj
+   dotnet build v1.2-mvv-lva/v1.2-mvv-lva.csproj
    # or
-   dotnet build CBEMv1.3_SimpleOrdering2/CBEMv1.3_SimpleOrdering2.csproj
+   dotnet build v1.3-move-ordering/v1.3-move-ordering.csproj
    # or
-   dotnet build CBEMv1.4_IteretiveDeep/CBEMv1.4_IteretiveDeep.csproj
+   dotnet build v1.4-iterative-deepening/v1.4-iterative-deepening.csproj
    # or
-   dotnet build CBEMv1.5_SimpleEvaluation/CBEMv1.5_SimpleEvaluation.csproj
+   dotnet build v1.5-pesto-eval/v1.5-pesto-eval.csproj
    # or
-   dotnet build CBEMv1.6_LateMoveReduction/CBEMv1.6_LateMoveReduction.csproj
+   dotnet build v2.0-lmr/v2.0-lmr.csproj
    # or
-   dotnet build CBEMv2.0_LMR&DeltaPruning/CBEMv2.0_LMR&DeltaPruning.csproj
+   dotnet build v2.1-uci/v2.1-uci.csproj
    # or
-   dotnet build CBEMv2.2_NullMove/CBEMv2.2_NullMove.csproj
+   dotnet build v2.2-null-move/v2.2-null-move.csproj
    # or
-   dotnet build CBEMv2.3_AspirationWindows/CBEMv2.3_AspirationWindows.csproj
+   dotnet build v2.3-aspiration/v2.3-aspiration.csproj
    # or
-   dotnet build CBEMv3.0_TranspositionTables/CBEMv3.0_TranspositionTables.csproj
+   dotnet build v3.0-transposition/v3.0-transposition.csproj
+   # or
+   dotnet build v3.5-stable/v3.5-stable.csproj
+   # or
+   dotnet build v3.6-rfp-ordering/v3.6-rfp-ordering.csproj
+   # or
+   dotnet build v3.7-optimized-board-state/v3.7-optimized-board-state.csproj
    ```
 
-3. **Run in debug mode** (for testing):
+3. **Run a version from the terminal**:
    ```bash
-   dotnet run --project CBEMv3.0_TranspositionTables
+   dotnet run --project v3.7-optimized-board-state/v3.7-optimized-board-state.csproj
    ```
 
 4. **Run with UCI GUI**:
    ```bash
-   dotnet run --project CBEMv3.0_TranspositionTables --no-debug
+   dotnet run --project v3.7-optimized-board-state/v3.7-optimized-board-state.csproj --no-debug
    ```
 
 ### Testing

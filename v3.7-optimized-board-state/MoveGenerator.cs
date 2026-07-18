@@ -510,8 +510,6 @@ public static class MoveGenerator
 
         if (moveFlag == (int)MoveFlag.allMoves)
         {
-            BoardState state = CopyBoard();
-
             int piece = GetMovePiece(move);
             int capture = GetMoveCapture(move);
 
@@ -533,12 +531,10 @@ public static class MoveGenerator
 
             if (capture != 0)
             {
-                // Pawns are most common capture target — check first
-                int[] searchOrder = isWhite
-                    ? [p, n, b, r, q]   // black pieces, pawn first
-                    : [P, N, B, R, Q];  // white pieces, pawn first
+                int startPiece = isWhite ? p : P;
+                int endPiece = isWhite ? k : K;
 
-                foreach (int bbPiece in searchOrder)
+                for (int bbPiece = startPiece; bbPiece <= endPiece; bbPiece++)
                 {
                     if (BitboardOperations.GetBit(bitboards[bbPiece], targetSquare))
                     {
@@ -647,7 +643,6 @@ public static class MoveGenerator
 
             Zobrist.hashKey ^= Zobrist.castleKeys[castle];  // hash castling
 
-            Array.Fill(occupancies, 0UL);
             UpdateOccupancies();
 
             side ^= 1;
@@ -658,19 +653,16 @@ public static class MoveGenerator
                 : BitboardOperations.GetLs1bIndex(bitboards[k]);
 
             if (IsSquareAttacked(kingSquare, side))
-            {
-                TakeBack(state);
                 return 0;
-            }
 
             return 1;
         }
         else
         {
-            if (GetMoveCapture(move) != 0)
-                MakeMove(move, (int)MoveFlag.allMoves);
+            if (GetMoveCapture(move) == 0)
+                return 0;
 
-            return 0;
+            return MakeMove(move, (int)MoveFlag.allMoves);
         }
     }
 }

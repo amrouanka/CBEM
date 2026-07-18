@@ -121,11 +121,21 @@ public static class Board
 
     public static void UpdateOccupancies()
     {
-        for (int piece = P; piece <= K; piece++)
-            occupancies[White] |= bitboards[piece];
+        occupancies[White] =
+            bitboards[P] |
+            bitboards[N] |
+            bitboards[B] |
+            bitboards[R] |
+            bitboards[Q] |
+            bitboards[K];
 
-        for (int piece = p; piece <= k; piece++)
-            occupancies[Black] |= bitboards[piece];
+        occupancies[Black] =
+            bitboards[p] |
+            bitboards[n] |
+            bitboards[b] |
+            bitboards[r] |
+            bitboards[q] |
+            bitboards[k];
 
         occupancies[Both] = occupancies[White] | occupancies[Black];
     }
@@ -134,25 +144,57 @@ public static class Board
     {
         return new BoardState
         {
-            bitboards = (ulong[])bitboards.Clone(), // this is too slow, version 3.7 used splits them into 12 variables and gain enormous speed!!
-            occupancies = (ulong[])occupancies.Clone(), // and splits these into 3 variables also
-            side = side,
-            enPassant = enPassant,
-            castle = castle,
-            hashKey = Zobrist.hashKey,
-            halfmoveClock = halfmoveClock
+            bb0 = bitboards[0],
+            bb1 = bitboards[1],
+            bb2 = bitboards[2],
+            bb3 = bitboards[3],
+            bb4 = bitboards[4],
+            bb5 = bitboards[5],
+            bb6 = bitboards[6],
+            bb7 = bitboards[7],
+            bb8 = bitboards[8],
+            bb9 = bitboards[9],
+            bb10 = bitboards[10],
+            bb11 = bitboards[11],
+
+            occ0 = occupancies[0],
+            occ1 = occupancies[1],
+            occ2 = occupancies[2],
+
+            side = Board.side,
+            enPassant = Board.enPassant,
+            castle = Board.castle,
+            halfmoveClock = Board.halfmoveClock,
+
+            hashKey = Zobrist.hashKey
         };
     }
 
     public static void TakeBack(BoardState state)
     {
-        Array.Copy(state.bitboards, bitboards, 12);
-        Array.Copy(state.occupancies, occupancies, 3);
+        bitboards[0] = state.bb0;
+        bitboards[1] = state.bb1;
+        bitboards[2] = state.bb2;
+        bitboards[3] = state.bb3;
+        bitboards[4] = state.bb4;
+        bitboards[5] = state.bb5;
+        bitboards[6] = state.bb6;
+        bitboards[7] = state.bb7;
+        bitboards[8] = state.bb8;
+        bitboards[9] = state.bb9;
+        bitboards[10] = state.bb10;
+        bitboards[11] = state.bb11;
+
+        occupancies[0] = state.occ0;
+        occupancies[1] = state.occ1;
+        occupancies[2] = state.occ2;
+
         side = state.side;
         enPassant = state.enPassant;
         castle = state.castle;
-        Zobrist.hashKey = state.hashKey;
         halfmoveClock = state.halfmoveClock;
+
+        Zobrist.hashKey = state.hashKey;
     }
 
     public static void PrintBoard()
