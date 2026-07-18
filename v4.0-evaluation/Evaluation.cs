@@ -1,11 +1,15 @@
 using static Board;
-using static Square;
+using static PieceAttacks;
+using static MoveGenerator;
 
 public static class Evaluation
 {
     // Material values for middlegame and endgame
     private static readonly int[] middlegamePieceValues = [82, 337, 365, 477, 1025, 0];
     private static readonly int[] endgamePieceValues = [94, 281, 297, 512, 936, 0];
+    private const int BishopPairMg = 30;
+    private const int BishopPairEg = 50;
+
 
     private static readonly int[] middlegamePawnTable = [
         0,   0,   0,   0,   0,   0,  0,   0,
@@ -235,6 +239,18 @@ public static class Evaluation
 
                 BitboardOperations.PopBit(ref bitboard, square);
             }
+        }
+
+        if (BitboardOperations.CountBits(bitboards[B]) >= 2)
+        {
+            middlegameScore += BishopPairMg;
+            endgameScore += BishopPairEg;
+        }
+
+        if (BitboardOperations.CountBits(bitboards[b]) >= 2)
+        {
+            middlegameScore -= BishopPairMg;
+            endgameScore -= BishopPairEg;
         }
 
         // Apply tapered evaluation
