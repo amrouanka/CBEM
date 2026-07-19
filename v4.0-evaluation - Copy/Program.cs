@@ -74,7 +74,7 @@ class Program
         "d5d6", "Positional pawn move to suffocate the bishop — d6"),
 
         ("3r1bk1/p4ppp/Qp2p3/8/1P1B4/Pq2P1P1/2r2P1P/R3R1K1 b - - 0 1",
-        "e6e5", "Pawn move to trap the bishop in the middle of the board — e5"),
+        "e6e5", "Pawn sac to deflect the bishop and bring black rook to 2 rank — e5"),
 
         ("r4rk1/pp1n1p1p/1nqP2p1/2b1P1B1/4NQ2/1B3P2/PP2K2P/2R5 w - - 0 1",
         "c1c5", "Nolot #2 — Rxc5"),

@@ -161,7 +161,7 @@ public static class Evaluation
         endgameKingTable
     ];
 
-    private static readonly int[] gamePhaseIncrement = [0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
+    private static readonly int[] gamePhaseIncrement = [0, 1, 1, 2, 4, 0, 0, 1, 1, 2, 4, 0];
     private static readonly int[,] middlegameEvaluationTable = new int[12, 64];
     private static readonly int[,] endgameEvaluationTable = new int[12, 64];
 
