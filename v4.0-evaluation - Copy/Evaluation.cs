@@ -18,6 +18,12 @@ public static class Evaluation
     private const int BishopMobilityMg = 3;
     private const int BishopMobilityEg = 3;
 
+    // Rook file bonuses
+    private const int RookSemiOpenFileMg = 8;
+    private const int RookSemiOpenFileEg = 6;
+    private const int RookOpenFileMg = 15;
+    private const int RookOpenFileEg = 10;
+
     // Baseline mobility: average-ish number of available squares
     private const int KnightMobilityBase = 4;
     private const int BishopMobilityBase = 6;
@@ -279,6 +285,65 @@ public static class Evaluation
         }
     }
 
+    private static void EvaluateRooks(ref int mgScore, ref int egScore)
+    {
+        ulong whitePawns = bitboards[P];
+        ulong blackPawns = bitboards[p];
+        ulong allPawns = whitePawns | blackPawns;
+
+        ulong bb;
+
+        // White rooks
+        bb = bitboards[R];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            ulong fileMask = FileMasks[square % 8];
+
+            // Semi-open: no friendly pawns on the file
+            if ((whitePawns & fileMask) == 0)
+            {
+                // Open: no pawns at all on the file
+                if ((allPawns & fileMask) == 0)
+                {
+                    mgScore += RookOpenFileMg;
+                    egScore += RookOpenFileEg;
+                }
+                else
+                {
+                    mgScore += RookSemiOpenFileMg;
+                    egScore += RookSemiOpenFileEg;
+                }
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // Black rooks
+        bb = bitboards[r];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            ulong fileMask = FileMasks[square % 8];
+
+            if ((blackPawns & fileMask) == 0)
+            {
+                if ((allPawns & fileMask) == 0)
+                {
+                    mgScore -= RookOpenFileMg;
+                    egScore -= RookOpenFileEg;
+                }
+                else
+                {
+                    mgScore -= RookSemiOpenFileMg;
+                    egScore -= RookSemiOpenFileEg;
+                }
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+    }
+
     private static void EvaluateMinorPieceMobility(ref int mgScore, ref int egScore)
     {
         ulong whiteOcc = occupancies[White];
@@ -466,6 +531,8 @@ public static class Evaluation
         EvaluateIsolatedPawns(ref mgScore, ref egScore);
         // Knight and bishop mobility
         EvaluateMinorPieceMobility(ref mgScore, ref egScore);
+        // Rooks on open / semi-open files
+        EvaluateRooks(ref mgScore, ref egScore);
 
         // Tapered evaluation: blend middlegame and endgame scores by game phase
         // Phase is capped at MaxPhase to handle early promotions gracefully
