@@ -12,6 +12,16 @@ public static class Evaluation
     private const int BishopPairMg = 30;
     private const int BishopPairEg = 50;
 
+    // Minor piece mobility (kept deliberately small)
+    private const int KnightMobilityMg = 2;
+    private const int KnightMobilityEg = 2;
+    private const int BishopMobilityMg = 3;
+    private const int BishopMobilityEg = 3;
+
+    // Baseline mobility: average-ish number of available squares
+    private const int KnightMobilityBase = 4;
+    private const int BishopMobilityBase = 6;
+
     // Passed pawn bonuses indexed by rank (from White's perspective)
     // Rank 0 = rank 8 (index 0..7), Rank 7 = rank 1 (index 56..63)
     // Bonuses increase as the pawn advances toward promotion
@@ -269,6 +279,67 @@ public static class Evaluation
         }
     }
 
+    private static void EvaluateMinorPieceMobility(ref int mgScore, ref int egScore)
+    {
+        ulong whiteOcc = occupancies[White];
+        ulong blackOcc = occupancies[Black];
+        ulong allOcc = occupancies[Both];
+
+        ulong bb;
+
+        // White knights
+        bb = bitboards[N];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int mobility = BitboardOperations.CountBits(knightAttacks[square] & ~whiteOcc);
+
+            mgScore += (mobility - KnightMobilityBase) * KnightMobilityMg;
+            egScore += (mobility - KnightMobilityBase) * KnightMobilityEg;
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // Black knights
+        bb = bitboards[n];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int mobility = BitboardOperations.CountBits(knightAttacks[square] & ~blackOcc);
+
+            mgScore -= (mobility - KnightMobilityBase) * KnightMobilityMg;
+            egScore -= (mobility - KnightMobilityBase) * KnightMobilityEg;
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // White bishops
+        bb = bitboards[B];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int mobility = BitboardOperations.CountBits(GetBishopAttacks(square, allOcc) & ~whiteOcc);
+
+            mgScore += (mobility - BishopMobilityBase) * BishopMobilityMg;
+            egScore += (mobility - BishopMobilityBase) * BishopMobilityEg;
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // Black bishops
+        bb = bitboards[b];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int mobility = BitboardOperations.CountBits(GetBishopAttacks(square, allOcc) & ~blackOcc);
+
+            mgScore -= (mobility - BishopMobilityBase) * BishopMobilityMg;
+            egScore -= (mobility - BishopMobilityBase) * BishopMobilityEg;
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+    }
+
     private static void EvaluateIsolatedPawns(ref int mgScore, ref int egScore)
     {
         ulong whitePawns = bitboards[P];
@@ -393,6 +464,8 @@ public static class Evaluation
         EvaluatePassedPawns(ref mgScore, ref egScore);
         // Isolated pawns
         EvaluateIsolatedPawns(ref mgScore, ref egScore);
+        // Knight and bishop mobility
+        EvaluateMinorPieceMobility(ref mgScore, ref egScore);
 
         // Tapered evaluation: blend middlegame and endgame scores by game phase
         // Phase is capped at MaxPhase to handle early promotions gracefully
