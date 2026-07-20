@@ -18,6 +18,10 @@ public static class Evaluation
     private static readonly int[] PassedPawnMg = [0, 15, 15, 17, 10, 6, 0, 0];
     private static readonly int[] PassedPawnEg = [0, 97, 55, 36, 17, 12, 0, 0];
 
+    // Isolated pawns
+    private const int IsolatedPawnMg = -5;
+    private const int IsolatedPawnEg = -15;
+
     // Passed pawn detection masks
     // WhitePassedMask[sq] = all squares ahead of sq on same + adjacent files (toward rank 8)
     // BlackPassedMask[sq] = all squares ahead of sq on same + adjacent files (toward rank 1)
@@ -195,6 +199,20 @@ public static class Evaluation
         return masks;
     }
 
+    // AdjacentFileMasks[file] = mask of both neighboring files
+    private static readonly ulong[] AdjacentFileMasks = InitAdjacentFileMasks();
+
+    private static ulong[] InitAdjacentFileMasks()
+    {
+        ulong[] masks = new ulong[8];
+        for (int file = 0; file < 8; file++)
+        {
+            if (file > 0) masks[file] |= FileMasks[file - 1];
+            if (file < 7) masks[file] |= FileMasks[file + 1];
+        }
+        return masks;
+    }
+
     // Precompute combined material + PST scores for all pieces and squares
     static Evaluation() => InitializeTables();
 
@@ -248,6 +266,45 @@ public static class Evaluation
                     blackAhead |= 1UL << (r * 8 + f);
 
             BlackPassedMask[square] = relevantFiles & blackAhead;
+        }
+    }
+
+    private static void EvaluateIsolatedPawns(ref int mgScore, ref int egScore)
+    {
+        ulong whitePawns = bitboards[P];
+        ulong blackPawns = bitboards[p];
+
+        // White isolated pawns
+        ulong bb = whitePawns;
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int file = square % 8;
+
+            // A pawn is isolated if no friendly pawns exist on adjacent files
+            if ((AdjacentFileMasks[file] & whitePawns) == 0)
+            {
+                mgScore += IsolatedPawnMg;
+                egScore += IsolatedPawnEg;
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // Black isolated pawns
+        bb = blackPawns;
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int file = square % 8;
+
+            if ((AdjacentFileMasks[file] & blackPawns) == 0)
+            {
+                mgScore -= IsolatedPawnMg;
+                egScore -= IsolatedPawnEg;
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
         }
     }
 
@@ -334,6 +391,8 @@ public static class Evaluation
 
         // Passed pawns
         EvaluatePassedPawns(ref mgScore, ref egScore);
+        // Isolated pawns
+        EvaluateIsolatedPawns(ref mgScore, ref egScore);
 
         // Tapered evaluation: blend middlegame and endgame scores by game phase
         // Phase is capped at MaxPhase to handle early promotions gracefully
