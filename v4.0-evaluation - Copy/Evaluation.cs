@@ -12,6 +12,18 @@ public static class Evaluation
     private const int BishopPairMg = 30;
     private const int BishopPairEg = 50;
 
+    // Passed pawn bonuses indexed by rank (from White's perspective)
+    // Rank 0 = rank 8 (index 0..7), Rank 7 = rank 1 (index 56..63)
+    // Bonuses increase as the pawn advances toward promotion
+    private static readonly int[] PassedPawnMg = [0, 15, 15, 17, 10, 6, 0, 0];
+    private static readonly int[] PassedPawnEg = [0, 97, 55, 36, 17, 12, 0, 0];
+
+    // Passed pawn detection masks
+    // WhitePassedMask[sq] = all squares ahead of sq on same + adjacent files (toward rank 8)
+    // BlackPassedMask[sq] = all squares ahead of sq on same + adjacent files (toward rank 1)
+    private static readonly ulong[] WhitePassedMask = new ulong[64];
+    private static readonly ulong[] BlackPassedMask = new ulong[64];
+
     // Game phase increments per piece type (pawn=0, knight=1, bishop=1, rook=2, queen=4, king=0)
     private static readonly int[] GamePhaseIncrements = [0, 1, 1, 2, 4, 0, 0, 1, 1, 2, 4, 0];
     private const int MaxPhase = 24;
@@ -171,11 +183,25 @@ public static class Evaluation
     private static readonly int[][] MgPst = [PawnMg, KnightMg, BishopMg, RookMg, QueenMg, KingMg];
     private static readonly int[][] EgPst = [PawnEg, KnightEg, BishopEg, RookEg, QueenEg, KingEg];
 
+    // File masks: all squares on a given file
+    // FileMasks[0] = a-file, FileMasks[7] = h-file
+    private static readonly ulong[] FileMasks = InitFileMasks();
+    private static ulong[] InitFileMasks()
+    {
+        ulong[] masks = new ulong[8];
+        for (int file = 0; file < 8; file++)
+            for (int rank = 0; rank < 8; rank++)
+                masks[file] |= 1UL << (rank * 8 + file);
+        return masks;
+    }
+
     // Precompute combined material + PST scores for all pieces and squares
     static Evaluation() => InitializeTables();
 
     private static void InitializeTables()
     {
+        InitPassedPawnMasks();
+
         for (int piece = 0; piece < 6; piece++)
         {
             for (int square = 0; square < 64; square++)
@@ -188,6 +214,83 @@ public static class Evaluation
                 MgTable[piece + 6, square] = MiddlegameValues[piece] + MgPst[piece][square ^ 56];
                 EgTable[piece + 6, square] = EndgameValues[piece] + EgPst[piece][square ^ 56];
             }
+        }
+    }
+
+    private static void InitPassedPawnMasks()
+    {
+        for (int square = 0; square < 64; square++)
+        {
+            int file = square % 8;
+            int rank = square / 8;
+
+            ulong fileMask = FileMasks[file];
+            ulong adjacentFiles = 0UL;
+            if (file > 0) adjacentFiles |= FileMasks[file - 1];
+            if (file < 7) adjacentFiles |= FileMasks[file + 1];
+
+            ulong relevantFiles = fileMask | adjacentFiles;
+
+            // White pawns move toward rank 8 (lower indices)
+            // Clear all ranks from current rank downward
+            ulong whiteAhead = 0UL;
+            for (int r = 0; r < rank; r++)
+                for (int f = 0; f < 8; f++)
+                    whiteAhead |= 1UL << (r * 8 + f);
+
+            WhitePassedMask[square] = relevantFiles & whiteAhead;
+
+            // Black pawns move toward rank 1 (higher indices)
+            // Clear all ranks from current rank upward
+            ulong blackAhead = 0UL;
+            for (int r = rank + 1; r < 8; r++)
+                for (int f = 0; f < 8; f++)
+                    blackAhead |= 1UL << (r * 8 + f);
+
+            BlackPassedMask[square] = relevantFiles & blackAhead;
+        }
+    }
+
+    private static void EvaluatePassedPawns(ref int mgScore, ref int egScore)
+    {
+        // White passed pawns
+        ulong whitePawns = bitboards[P];
+        ulong blackPawns = bitboards[p];
+        ulong bb = whitePawns;
+
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int rank = square / 8;
+
+            // A white pawn is passed if no black pawns can block or guard it
+            if ((WhitePassedMask[square] & blackPawns) == 0)
+            {
+                mgScore += PassedPawnMg[rank];
+                egScore += PassedPawnEg[rank];
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // Black passed pawns
+        bb = blackPawns;
+
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int rank = square / 8;
+
+            // A black pawn is passed if no white pawns can block or guard it
+            if ((BlackPassedMask[square] & whitePawns) == 0)
+            {
+                // Mirror rank for Black: rank 1 (index 7) is close to promotion
+                int mirroredRank = 7 - rank;
+                mgScore -= PassedPawnMg[mirroredRank];
+                egScore -= PassedPawnEg[mirroredRank];
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
         }
     }
 
@@ -228,6 +331,9 @@ public static class Evaluation
         // Bishop pair bonuses
         if (BitboardOperations.CountBits(bitboards[B]) >= 2) { mgScore += BishopPairMg; egScore += BishopPairEg; }
         if (BitboardOperations.CountBits(bitboards[b]) >= 2) { mgScore -= BishopPairMg; egScore -= BishopPairEg; }
+
+        // Passed pawns
+        EvaluatePassedPawns(ref mgScore, ref egScore);
 
         // Tapered evaluation: blend middlegame and endgame scores by game phase
         // Phase is capped at MaxPhase to handle early promotions gracefully
