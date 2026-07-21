@@ -44,8 +44,9 @@ public static class Evaluation
     private const int KingAdjacentOpenFileMg = 8;
     private const int KingAdjacentSemiOpenFileMg = 4;
 
-    // Knight outposts (middlegame only)
+    // Knight and bishop outposts (middlegame only)
     private const int KnightOutpostMg = 12;
+    private const int BishopOutpostMg = 6;
 
     // Squares from which enemy pawns could challenge an outpost square
     private static readonly ulong[] WhiteKnightOutpostMask = new ulong[64];
@@ -340,8 +341,7 @@ public static class Evaluation
             BlackPassedMask[square] = relevantFiles & blackAhead;
         }
     }
-
-    private static void EvaluateKnightOutposts(ref int mgScore)
+    private static void EvaluateMinorOutposts(ref int mgScore)
     {
         ulong whitePawns = bitboards[P];
         ulong blackPawns = bitboards[p];
@@ -358,14 +358,30 @@ public static class Evaluation
             // White outposts only on ranks 4-6
             if (rank >= 2 && rank <= 4)
             {
-                // To know whether a white pawn supports a square, you want the squares from
-                // which a white pawn could attack that square. Those origin squares are
-                // exactly the squares a black pawn placed on that square would attack.
                 bool supportedByPawn = (pawnAttacks[Black, square] & whitePawns) != 0;
                 bool cannotBeChased = (WhiteKnightOutpostMask[square] & blackPawns) == 0;
 
                 if (supportedByPawn && cannotBeChased)
                     mgScore += KnightOutpostMg;
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // White bishops
+        bb = bitboards[B];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int rank = square / 8;
+
+            if (rank >= 2 && rank <= 4)
+            {
+                bool supportedByPawn = (pawnAttacks[Black, square] & whitePawns) != 0;
+                bool cannotBeChased = (WhiteKnightOutpostMask[square] & blackPawns) == 0;
+
+                if (supportedByPawn && cannotBeChased)
+                    mgScore += BishopOutpostMg;
             }
 
             BitboardOperations.PopBit(ref bb, square);
@@ -386,6 +402,25 @@ public static class Evaluation
 
                 if (supportedByPawn && cannotBeChased)
                     mgScore -= KnightOutpostMg;
+            }
+
+            BitboardOperations.PopBit(ref bb, square);
+        }
+
+        // Black bishops
+        bb = bitboards[b];
+        while (bb != 0)
+        {
+            int square = BitboardOperations.GetLs1bIndex(bb);
+            int rank = square / 8;
+
+            if (rank >= 3 && rank <= 5)
+            {
+                bool supportedByPawn = (pawnAttacks[White, square] & blackPawns) != 0;
+                bool cannotBeChased = (BlackKnightOutpostMask[square] & whitePawns) == 0;
+
+                if (supportedByPawn && cannotBeChased)
+                    mgScore -= BishopOutpostMg;
             }
 
             BitboardOperations.PopBit(ref bb, square);
@@ -700,8 +735,8 @@ public static class Evaluation
         EvaluateRooks(ref mgScore, ref egScore);
         // King on open / semi-open file
         EvaluateKingOpenFilePenalty(ref mgScore);
-        // Knight outposts
-        EvaluateKnightOutposts(ref mgScore);
+        // Knight and Bishop outposts
+        EvaluateMinorOutposts(ref mgScore);
 
         // Tapered evaluation: blend middlegame and endgame scores by game phase
         // Phase is capped at MaxPhase to handle early promotions gracefully
