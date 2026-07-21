@@ -38,6 +38,10 @@ public static class Evaluation
     private const int IsolatedPawnMg = -5;
     private const int IsolatedPawnEg = -15;
 
+    private const int PawnShieldRank1Mg = 10;   // Pawn directly in front: strong shield
+    private const int PawnShieldRank2Mg = 5;    // Pawn two ranks ahead: partial shield
+    private const int PawnShieldMissingMg = -10; // No pawn at all: penalty for exposure
+
     // Passed pawn detection masks
     // WhitePassedMask[sq] = all squares ahead of sq on same + adjacent files (toward rank 8)
     // BlackPassedMask[sq] = all squares ahead of sq on same + adjacent files (toward rank 1)
@@ -487,6 +491,108 @@ public static class Evaluation
         }
     }
 
+    private static void EvaluateKingPawnShield(ref int mgScore, ref int egScore)
+    {
+        ulong whitePawns = bitboards[P];
+        ulong blackPawns = bitboards[p];
+
+        // ── White King Shield ──────────────────────────────────────────
+        // Find the white king's position. There's exactly one king, so
+        // GetLs1bIndex on the king bitboard gives us its square directly.
+        int whiteKingSq = BitboardOperations.GetLs1bIndex(bitboards[K]);
+        int wkFile = whiteKingSq % 8;
+        int wkRank = whiteKingSq / 8;
+
+        // Determine which files form the shield: king's file ± 1,
+        // clamped to the board edges (files 0-7).
+        int wShieldFileStart = Math.Max(0, wkFile - 1);
+        int wShieldFileEnd = Math.Min(7, wkFile + 1);
+
+        // For each shield file, look for pawns 1 or 2 ranks ahead
+        for (int file = wShieldFileStart; file <= wShieldFileEnd; file++)
+        {
+            bool foundShield = false;
+
+            // Check 1 rank ahead of the white king (toward rank 1 / index 0).
+            // "Ahead" for white = toward lower rank numbers.
+            // We need wkRank >= 1 so we don't go off the board.
+            if (wkRank >= 1)
+            {
+                int shieldSq = (wkRank - 1) * 8 + file;
+                // Test if there's a white pawn on this exact square
+                if ((whitePawns & (1UL << shieldSq)) != 0)
+                {
+                    // Pawn right in front — best possible shield on this file
+                    mgScore += PawnShieldRank1Mg;
+                    foundShield = true;
+                }
+            }
+
+            // If we didn't find a pawn on rank 1, check rank 2 ahead
+            if (!foundShield && wkRank >= 2)
+            {
+                int shieldSq = (wkRank - 2) * 8 + file;
+                if ((whitePawns & (1UL << shieldSq)) != 0)
+                {
+                    // Pawn two ranks ahead — weaker but still provides cover
+                    mgScore += PawnShieldRank2Mg;
+                    foundShield = true;
+                }
+            }
+
+            // No pawn found within 2 ranks on this file — exposed!
+            if (!foundShield)
+            {
+                mgScore += PawnShieldMissingMg;
+            }
+        }
+
+        // ── Black King Shield ──────────────────────────────────────────
+        // Same logic, but mirrored: "ahead" for black = toward higher
+        // rank numbers (toward rank 8 / index 56+).
+        int blackKingSq = BitboardOperations.GetLs1bIndex(bitboards[k]);
+        int bkFile = blackKingSq % 8;
+        int bkRank = blackKingSq / 8;
+
+        int bShieldFileStart = Math.Max(0, bkFile - 1);
+        int bShieldFileEnd = Math.Min(7, bkFile + 1);
+
+        for (int file = bShieldFileStart; file <= bShieldFileEnd; file++)
+        {
+            bool foundShield = false;
+
+            // Check 1 rank ahead of the black king (toward rank 8 / higher indices)
+            if (bkRank <= 6)
+            {
+                int shieldSq = (bkRank + 1) * 8 + file;
+                if ((blackPawns & (1UL << shieldSq)) != 0)
+                {
+                    // Best shield for black — subtract because we score
+                    // from white's perspective (positive = good for white)
+                    mgScore -= PawnShieldRank1Mg;
+                    foundShield = true;
+                }
+            }
+
+            if (!foundShield && bkRank <= 5)
+            {
+                int shieldSq = (bkRank + 2) * 8 + file;
+                if ((blackPawns & (1UL << shieldSq)) != 0)
+                {
+                    mgScore -= PawnShieldRank2Mg;
+                    foundShield = true;
+                }
+            }
+
+            if (!foundShield)
+            {
+                // Missing shield pawn for black — good for white, so
+                // we subtract the negative penalty (making it positive)
+                mgScore -= PawnShieldMissingMg;
+            }
+        }
+    }
+
     public static int Evaluate()
     {
         int mgScore = 0;
@@ -527,12 +633,18 @@ public static class Evaluation
 
         // Passed pawns
         EvaluatePassedPawns(ref mgScore, ref egScore);
+
         // Isolated pawns
         EvaluateIsolatedPawns(ref mgScore, ref egScore);
+
         // Knight and bishop mobility
         EvaluateMinorPieceMobility(ref mgScore, ref egScore);
+
         // Rooks on open / semi-open files
         EvaluateRooks(ref mgScore, ref egScore);
+
+        // King pawn shield — reward pawns sheltering the king
+        EvaluateKingPawnShield(ref mgScore, ref egScore);
 
         // Tapered evaluation: blend middlegame and endgame scores by game phase
         // Phase is capped at MaxPhase to handle early promotions gracefully
