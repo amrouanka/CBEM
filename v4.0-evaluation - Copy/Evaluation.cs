@@ -47,10 +47,6 @@ public static class Evaluation
     // Knight outposts (middlegame only)
     private const int KnightOutpostMg = 12;
 
-    // Connected passed pawns bonus (endgame focused)
-    private const int ConnectedPassedPawnMg = 5;
-    private const int ConnectedPassedPawnEg = 15;
-
     // Squares from which enemy pawns could challenge an outpost square
     private static readonly ulong[] WhiteKnightOutpostMask = new ulong[64];
     private static readonly ulong[] BlackKnightOutpostMask = new ulong[64];
@@ -342,65 +338,6 @@ public static class Evaluation
                     blackAhead |= 1UL << (r * 8 + f);
 
             BlackPassedMask[square] = relevantFiles & blackAhead;
-        }
-    }
-
-    private static void EvaluateConnectedPassedPawns(ref int mgScore, ref int egScore)
-    {
-        ulong whitePawns = bitboards[P];
-        ulong blackPawns = bitboards[p];
-
-        // First collect all passed pawns for each side
-        ulong whitePassers = 0UL;
-        ulong blackPassers = 0UL;
-
-        ulong bb = whitePawns;
-        while (bb != 0)
-        {
-            int square = BitboardOperations.GetLs1bIndex(bb);
-            if ((WhitePassedMask[square] & blackPawns) == 0)
-                whitePassers |= 1UL << square;
-            BitboardOperations.PopBit(ref bb, square);
-        }
-
-        bb = blackPawns;
-        while (bb != 0)
-        {
-            int square = BitboardOperations.GetLs1bIndex(bb);
-            if ((BlackPassedMask[square] & whitePawns) == 0)
-                blackPassers |= 1UL << square;
-            BitboardOperations.PopBit(ref bb, square);
-        }
-
-        // A passed pawn is connected if there is another passed pawn on an adjacent file
-        bb = whitePassers;
-        while (bb != 0)
-        {
-            int square = BitboardOperations.GetLs1bIndex(bb);
-            int file = square % 8;
-
-            if ((AdjacentFileMasks[file] & whitePassers) != 0)
-            {
-                mgScore += ConnectedPassedPawnMg;
-                egScore += ConnectedPassedPawnEg;
-            }
-
-            BitboardOperations.PopBit(ref bb, square);
-        }
-
-        bb = blackPassers;
-        while (bb != 0)
-        {
-            int square = BitboardOperations.GetLs1bIndex(bb);
-            int file = square % 8;
-
-            if ((AdjacentFileMasks[file] & blackPassers) != 0)
-            {
-                mgScore -= ConnectedPassedPawnMg;
-                egScore -= ConnectedPassedPawnEg;
-            }
-
-            BitboardOperations.PopBit(ref bb, square);
         }
     }
 
@@ -755,8 +692,6 @@ public static class Evaluation
 
         // Passed pawns
         EvaluatePassedPawns(ref mgScore, ref egScore);
-        // Connected passed pawns
-        EvaluateConnectedPassedPawns(ref mgScore, ref egScore);
         // Isolated pawns
         EvaluateIsolatedPawns(ref mgScore, ref egScore);
         // Knight and bishop mobility
