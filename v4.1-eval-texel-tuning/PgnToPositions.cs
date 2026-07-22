@@ -17,26 +17,33 @@ public static class PgnToPositions
         List<string> outputLines = new();
         string[] lines = File.ReadAllLines(pgnPath);
 
+        string currentFen = Program.StartPosition;
         string currentResult = "";
         List<string> moveTokens = new();
+
 
         for (int i = 0; i < lines.Length; i++)
         {
             string line = lines[i].Trim();
 
-            if (line.StartsWith("[Result"))
+            if (line.StartsWith("[FEN "))
             {
-                if (line.StartsWith("[Result "))
-                {
-                    int firstQuote = line.IndexOf('"');
-                    int lastQuote = line.LastIndexOf('"');
+                int firstQuote = line.IndexOf('"');
+                int lastQuote = line.LastIndexOf('"');
 
-                    if (firstQuote >= 0 && lastQuote > firstQuote)
-                        currentResult = line[(firstQuote + 1)..lastQuote];
+                if (firstQuote >= 0 && lastQuote > firstQuote)
+                    currentFen = line[(firstQuote + 1)..lastQuote];
 
-                    moveTokens.Clear();
-                    continue;
-                }
+                continue;
+            }
+
+            if (line.StartsWith("[Result "))
+            {
+                int firstQuote = line.IndexOf('"');
+                int lastQuote = line.LastIndexOf('"');
+
+                if (firstQuote >= 0 && lastQuote > firstQuote)
+                    currentResult = line[(firstQuote + 1)..lastQuote];
 
                 moveTokens.Clear();
                 continue;
@@ -58,16 +65,19 @@ public static class PgnToPositions
                     };
 
                     if (result >= 0.0)
-                        ExtractPositions(moveTokens, result, skipPlies, sampleEvery, maxPositionsPerGame, maxCaptureMoves, outputLines, seen);
+                        ExtractPositions(currentFen, moveTokens, result, skipPlies, sampleEvery, maxPositionsPerGame, maxCaptureMoves, outputLines, seen);
 
                     moveTokens.Clear();
                     currentResult = "";
+                    currentFen = Program.StartPosition;
                 }
 
                 continue;
             }
 
-            moveTokens.AddRange(line.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            // Remove {...} comments before splitting
+            string cleaned = Regex.Replace(line, @"\{[^}]*\}", "");
+            moveTokens.AddRange(cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries));
         }
 
         // Handle last game if file doesn't end with blank line
@@ -82,7 +92,7 @@ public static class PgnToPositions
             };
 
             if (result >= 0.0)
-                ExtractPositions(moveTokens, result, skipPlies, sampleEvery, maxPositionsPerGame, maxCaptureMoves, outputLines, seen);
+                ExtractPositions(currentFen, moveTokens, result, skipPlies, sampleEvery, maxPositionsPerGame, maxCaptureMoves, outputLines, seen);
         }
 
         File.WriteAllLines(outputPath, outputLines);
@@ -90,6 +100,7 @@ public static class PgnToPositions
     }
 
     private static void ExtractPositions(
+    string startFen,
     List<string> moveTokens,
     double result,
     int skipPlies,
@@ -99,7 +110,7 @@ public static class PgnToPositions
     List<string> output,
     HashSet<string> seen)
     {
-        Board.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        Board.ParseFEN(startFen);
 
         int ply = 0;
         int saved = 0;
@@ -109,14 +120,26 @@ public static class PgnToPositions
             if (saved >= maxPositionsPerGame)
                 break;
 
-            if (token.Contains('.') || token == "1-0" || token == "0-1" || token == "1/2-1/2" || token == "*")
+            // Skip move numbers, results, and PGN comments like {book}
+            if (token.Contains('.') ||
+                token == "1-0" ||
+                token == "0-1" ||
+                token == "1/2-1/2" ||
+                token == "*" ||
+                token == "White" ||
+                token == "Black" ||
+                token == "Draw")
                 continue;
 
             string moveStr = token.Replace("+", "").Replace("#", "").Replace("!", "").Replace("?", "");
 
             int move = ParseSanMove(moveStr);
             if (move == 0)
+            {
+                Console.WriteLine($"Failed to parse SAN '{moveStr}' at ply {ply} from start FEN:");
+                Console.WriteLine(startFen);
                 return;
+            }
 
             BoardState state = Board.CopyBoard();
             if (MoveGenerator.MakeMove(move, (int)MoveFlag.allMoves) == 0)

@@ -22,8 +22,4 @@ public sealed class EvalFeatures
     public int KingAdjacentSemiOpenBalance;
 
     public int KnightOutpostBalance;
-
-    // Passed pawns by mirrored rank bucket
-    // index 0..7 matches your PassedMg / PassedEg arrays
-    public int[] PassedPawnBalanceByRank = new int[8];
 }

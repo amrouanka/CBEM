@@ -3,31 +3,45 @@ using System.Text;
 
 public sealed class EvalWeights
 {
+    public int FixedMgScale = 100;
+    public int FixedEgScale = 100;
+
+    public int PawnMgAdjust = 0;
+    public int PawnEgAdjust = 0;
+    public int KnightMgAdjust = 0;
+    public int KnightEgAdjust = 0;
+    public int BishopMgAdjust = 0;
+    public int BishopEgAdjust = 0;
+    public int RookMgAdjust = 0;
+    public int RookEgAdjust = 0;
+    public int QueenMgAdjust = 0;
+    public int QueenEgAdjust = 0;
+
     public int BishopPairMg = 30;
     public int BishopPairEg = 50;
 
-    public int KnightMobMg = 2;
-    public int KnightMobEg = 2;
-    public int BishopMobMg = 3;
-    public int BishopMobEg = 3;
+    public int KnightMobMg = 4;
+    public int KnightMobEg = 4;
+    public int BishopMobMg = 5;
+    public int BishopMobEg = 5;
 
-    public int RookSemiOpenMg = 8;
-    public int RookSemiOpenEg = 6;
-    public int RookOpenMg = 15;
-    public int RookOpenEg = 10;
+    public int RookSemiOpenMg = 10;
+    public int RookSemiOpenEg = 8;
+    public int RookOpenMg = 20;
+    public int RookOpenEg = 12;
 
-    public int[] PassedMg = [0, 15, 15, 17, 10, 6, 0, 0];
-    public int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
+    public int[] PassedMg = [0, 10, 10, 15, 25, 40, 70, 0];
+    public int[] PassedEg = [0, 15, 20, 35, 55, 90, 140, 0];
 
-    public int IsolatedMg = -5;
-    public int IsolatedEg = -15;
+    public int IsolatedMg = -8;
+    public int IsolatedEg = -12;
 
-    public int KingOwnOpenMg = 20;
+    public int KingOwnOpenMg = 25;
     public int KingOwnSemiOpenMg = 10;
-    public int KingAdjacentOpenMg = 8;
-    public int KingAdjacentSemiOpenMg = 4;
+    public int KingAdjacentOpenMg = 10;
+    public int KingAdjacentSemiOpenMg = 5;
 
-    public int KnightOutpostMg = 12;
+    public int KnightOutpostMg = 15;
 
     public EvalWeights Clone()
     {
@@ -75,10 +89,6 @@ public sealed class EvalWeights
 
         sb.AppendLine($"private const int RookSemiOpenMg = {RookSemiOpenMg}, RookSemiOpenEg = {RookSemiOpenEg};");
         sb.AppendLine($"private const int RookOpenMg = {RookOpenMg}, RookOpenEg = {RookOpenEg};");
-        sb.AppendLine();
-
-        sb.AppendLine($"private static readonly int[] PassedMg = [{string.Join(", ", PassedMg)}];");
-        sb.AppendLine($"private static readonly int[] PassedEg = [{string.Join(", ", PassedEg)}];");
         sb.AppendLine();
 
         sb.AppendLine($"private const int IsolatedMg = {IsolatedMg};");
