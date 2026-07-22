@@ -39,6 +39,288 @@ using static MoveGenerator;
 /// </summary>
 public static class Evaluation
 {
+    public static EvalWeights GetCurrentWeights()
+    {
+        return new EvalWeights
+        {
+            BishopPairMg = BishopPairMg,
+            BishopPairEg = BishopPairEg,
+
+            KnightMobMg = KnightMobMg,
+            KnightMobEg = KnightMobEg,
+            BishopMobMg = BishopMobMg,
+            BishopMobEg = BishopMobEg,
+
+            RookSemiOpenMg = RookSemiOpenMg,
+            RookSemiOpenEg = RookSemiOpenEg,
+            RookOpenMg = RookOpenMg,
+            RookOpenEg = RookOpenEg,
+
+            PassedMg = (int[])PassedMg.Clone(),
+            PassedEg = (int[])PassedEg.Clone(),
+
+            IsolatedMg = IsolatedMg,
+            IsolatedEg = IsolatedEg,
+
+            KingOwnOpenMg = KingOwnOpenMg,
+            KingOwnSemiOpenMg = KingOwnSemiOpenMg,
+            KingAdjacentOpenMg = KingAdjacentOpenMg,
+            KingAdjacentSemiOpenMg = KingAdjacentSemiOpenMg,
+
+            KnightOutpostMg = KnightOutpostMg
+        };
+    }
+
+    public static int EvaluateWhitePerspective(EvalFeatures f, EvalWeights w)
+    {
+        int mg = f.FixedMg;
+        int eg = f.FixedEg;
+
+        mg += f.BishopPairBalance * w.BishopPairMg;
+        eg += f.BishopPairBalance * w.BishopPairEg;
+
+        mg += f.KnightMobilityBalance * w.KnightMobMg;
+        eg += f.KnightMobilityBalance * w.KnightMobEg;
+
+        mg += f.BishopMobilityBalance * w.BishopMobMg;
+        eg += f.BishopMobilityBalance * w.BishopMobEg;
+
+        mg += f.RookSemiOpenBalance * w.RookSemiOpenMg;
+        eg += f.RookSemiOpenBalance * w.RookSemiOpenEg;
+
+        mg += f.RookOpenBalance * w.RookOpenMg;
+        eg += f.RookOpenBalance * w.RookOpenEg;
+
+        for (int i = 0; i < 8; i++)
+        {
+            mg += f.PassedPawnBalanceByRank[i] * w.PassedMg[i];
+            eg += f.PassedPawnBalanceByRank[i] * w.PassedEg[i];
+        }
+
+        mg += f.IsolatedPawnBalance * w.IsolatedMg;
+        eg += f.IsolatedPawnBalance * w.IsolatedEg;
+
+        mg += f.KingOwnOpenBalance * w.KingOwnOpenMg;
+        mg += f.KingOwnSemiOpenBalance * w.KingOwnSemiOpenMg;
+        mg += f.KingAdjacentOpenBalance * w.KingAdjacentOpenMg;
+        mg += f.KingAdjacentSemiOpenBalance * w.KingAdjacentSemiOpenMg;
+
+        mg += f.KnightOutpostBalance * w.KnightOutpostMg;
+
+        int mgPhase = Math.Min(f.Phase, TotalPhase);
+        int egPhase = TotalPhase - mgPhase;
+
+        return (mg * mgPhase + eg * egPhase) / TotalPhase;
+    }
+
+    public static EvalFeatures ExtractFeatures()
+    {
+        EvalFeatures f = new();
+
+        // ------------------------------------------------
+        // Fixed base: material + PST only
+        // ------------------------------------------------
+        ExtractFixedBase(P, K, +1, f);
+        ExtractFixedBase(p, k, -1, f);
+
+        // ------------------------------------------------
+        // Bishop pair
+        // ------------------------------------------------
+        if (BitboardOperations.CountBits(bitboards[B]) >= 2) f.BishopPairBalance++;
+        if (BitboardOperations.CountBits(bitboards[b]) >= 2) f.BishopPairBalance--;
+
+        ulong wPawns = bitboards[P];
+        ulong bPawns = bitboards[p];
+        ulong wOcc = occupancies[White];
+        ulong bOcc = occupancies[Black];
+        ulong allOcc = occupancies[Both];
+        ulong allPawns = wPawns | bPawns;
+
+        // ------------------------------------------------
+        // Passed pawns
+        // ------------------------------------------------
+        for (ulong bb = wPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((WhitePassedMask[sq] & bPawns) == 0)
+                f.PassedPawnBalanceByRank[sq / 8]++;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((BlackPassedMask[sq] & wPawns) == 0)
+                f.PassedPawnBalanceByRank[7 - sq / 8]--;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        // ------------------------------------------------
+        // Isolated pawns
+        // ------------------------------------------------
+        for (ulong bb = wPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((AdjacentFiles[sq % 8] & wPawns) == 0) f.IsolatedPawnBalance++;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((AdjacentFiles[sq % 8] & bPawns) == 0) f.IsolatedPawnBalance--;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        // ------------------------------------------------
+        // Mobility
+        // ------------------------------------------------
+        for (ulong bb = bitboards[N]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            f.KnightMobilityBalance += BitboardOperations.CountBits(knightAttacks[sq] & ~wOcc) - KnightMobBase;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bitboards[n]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            f.KnightMobilityBalance -= BitboardOperations.CountBits(knightAttacks[sq] & ~bOcc) - KnightMobBase;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bitboards[B]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            f.BishopMobilityBalance += BitboardOperations.CountBits(GetBishopAttacks(sq, allOcc) & ~wOcc) - BishopMobBase;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bitboards[b]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            f.BishopMobilityBalance -= BitboardOperations.CountBits(GetBishopAttacks(sq, allOcc) & ~bOcc) - BishopMobBase;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        // ------------------------------------------------
+        // Rook files
+        // ------------------------------------------------
+        for (ulong bb = bitboards[R]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int file = sq % 8;
+            ulong fileMask = FileMask[file];
+
+            if ((wPawns & fileMask) == 0)
+            {
+                if ((allPawns & fileMask) == 0) f.RookOpenBalance++;
+                else f.RookSemiOpenBalance++;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bitboards[r]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int file = sq % 8;
+            ulong fileMask = FileMask[file];
+
+            if ((bPawns & fileMask) == 0)
+            {
+                if ((allPawns & fileMask) == 0) f.RookOpenBalance--;
+                else f.RookSemiOpenBalance--;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        // ------------------------------------------------
+        // King exposure
+        // ------------------------------------------------
+        int wkFile = BitboardOperations.GetLs1bIndex(bitboards[K]) % 8;
+        int bkFile = BitboardOperations.GetLs1bIndex(bitboards[k]) % 8;
+
+        AddKingFileFeature(wkFile, wPawns, allPawns, -1, ref f.KingOwnOpenBalance, ref f.KingOwnSemiOpenBalance);
+        AddKingFileFeature(bkFile, bPawns, allPawns, +1, ref f.KingOwnOpenBalance, ref f.KingOwnSemiOpenBalance);
+
+        if (wkFile > 0) AddKingFileFeature(wkFile - 1, wPawns, allPawns, -1, ref f.KingAdjacentOpenBalance, ref f.KingAdjacentSemiOpenBalance);
+        if (wkFile < 7) AddKingFileFeature(wkFile + 1, wPawns, allPawns, -1, ref f.KingAdjacentOpenBalance, ref f.KingAdjacentSemiOpenBalance);
+
+        if (bkFile > 0) AddKingFileFeature(bkFile - 1, bPawns, allPawns, +1, ref f.KingAdjacentOpenBalance, ref f.KingAdjacentSemiOpenBalance);
+        if (bkFile < 7) AddKingFileFeature(bkFile + 1, bPawns, allPawns, +1, ref f.KingAdjacentOpenBalance, ref f.KingAdjacentSemiOpenBalance);
+
+        // ------------------------------------------------
+        // Knight outposts
+        // ------------------------------------------------
+        for (ulong bb = bitboards[N]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int rank = sq / 8;
+
+            if (rank >= 2 && rank <= 4 &&
+                (pawnAttacks[Black, sq] & wPawns) != 0 &&
+                (WhiteOutpostMask[sq] & bPawns) == 0)
+            {
+                f.KnightOutpostBalance++;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bitboards[n]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int rank = sq / 8;
+
+            if (rank >= 3 && rank <= 5 &&
+                (pawnAttacks[White, sq] & bPawns) != 0 &&
+                (BlackOutpostMask[sq] & wPawns) == 0)
+            {
+                f.KnightOutpostBalance--;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        return f;
+    }
+
+    private static void ExtractFixedBase(int first, int last, int sign, EvalFeatures f)
+    {
+        for (int piece = first; piece <= last; piece++)
+        {
+            ulong bb = bitboards[piece];
+            while (bb != 0)
+            {
+                int sq = BitboardOperations.GetLs1bIndex(bb);
+                f.FixedMg += sign * MgTable[piece, sq];
+                f.FixedEg += sign * EgTable[piece, sq];
+                f.Phase += PhaseWeight[piece];
+                BitboardOperations.PopBit(ref bb, sq);
+            }
+        }
+    }
+
+    private static void AddKingFileFeature(
+        int file,
+        ulong friendlyPawns,
+        ulong allPawns,
+        int sign,
+        ref int openBalance,
+        ref int semiOpenBalance)
+    {
+        ulong mask = FileMask[file];
+
+        if ((friendlyPawns & mask) != 0)
+            return;
+
+        if ((allPawns & mask) == 0) openBalance += sign;
+        else semiOpenBalance += sign;
+    }
+
+
     // ================================================================
     //  Constants
     // ================================================================

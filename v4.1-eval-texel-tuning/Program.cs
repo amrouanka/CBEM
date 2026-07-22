@@ -11,15 +11,30 @@ class Program
     // Debug mode variable
     public static bool debug = false;
 
-    static void Main()
+    static void Main(string[] args)
     {
+        if (args.Length >= 2)
+        {
+            if (args[0].Equals("texel", StringComparison.OrdinalIgnoreCase))
+            {
+                TexelTuner.Run(args[1]);
+                return;
+            }
+
+            if (args[0].Equals("extract", StringComparison.OrdinalIgnoreCase))
+            {
+                string output = args.Length >= 3 ? args[2] : "positions.txt";
+                PgnToPositions.Convert(args[1], output);
+                return;
+            }
+        }
+
         if (debug)
         {
-            RunTacticalTest(); // [12/24] 13.1 ->  [12/24] 13.5 -> [11/24] 14.8
+            RunTacticalTest();
         }
         else
         {
-            // Connect to the GUI
             Uci.UciLoop();
         }
     }
