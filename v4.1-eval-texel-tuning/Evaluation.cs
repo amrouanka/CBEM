@@ -431,13 +431,13 @@ public static class Evaluation
         ScorePieces(p, k, -1, ref mg, ref eg, ref phase);
 
         // ---- Positional features ----
-        // ScoreBishopPair(ref mg, ref eg);
-        // ScorePassedPawns(ref mg, ref eg);
-        // ScoreIsolatedPawns(ref mg, ref eg);
-        // ScoreMobility(ref mg, ref eg);
-        // ScoreRookFiles(ref mg, ref eg);
-        // ScoreKingExposure(ref mg);
-        // ScoreKnightOutposts(ref mg);
+        ScoreBishopPair(ref mg, ref eg);
+        ScorePassedPawns(ref mg, ref eg);
+        ScoreIsolatedPawns(ref mg, ref eg);
+        ScoreMobility(ref mg, ref eg);
+        ScoreRookFiles(ref mg, ref eg);
+        ScoreKingExposure(ref mg);
+        ScoreKnightOutposts(ref mg);
 
         // ---- Taper and return ----
         int mgPhase = Math.Min(phase, TotalPhase);
