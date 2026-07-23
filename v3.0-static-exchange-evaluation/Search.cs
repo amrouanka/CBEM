@@ -94,10 +94,7 @@ public static class Search
 
     private const int MateThreshold = MateScore - MaxPly;
 
-    private static bool IsMateScore(int score)
-    {
-        return Math.Abs(score) >= MateThreshold;
-    }
+    private static bool IsMateScore(int score) => Math.Abs(score) >= MateThreshold;
 
     private static int ScoreToMate(int score)
     {
@@ -120,6 +117,7 @@ public static class Search
         TimeManagement.stopped = false;
 
         Array.Clear(pvTable);
+        Array.Clear(pvLength);   // FIX Bug 7/8: must clear pvLength between searches
         Array.Clear(killerMove1);
         Array.Clear(killerMove2);
         Array.Clear(historyMoves);
@@ -173,7 +171,8 @@ public static class Search
 
             if (!Program.debug)
             {
-                Console.Write($"info score {FormatUciScore(score)} depth {currentDepth} nodes {nodes} pv ");
+                Console.Write(
+                    $"info score {FormatUciScore(score)} depth {currentDepth} nodes {nodes} pv ");
                 for (int i = 0; i < pvLength[0]; i++)
                     Console.Write($"{GetMove(pvTable[0, i])} ");
                 Console.WriteLine();
@@ -182,6 +181,7 @@ public static class Search
             if (TimeManagement.ShouldStopAfterIteration()) break;
         }
 
+        // Fallback: pick first legal move if no iteration completed
         if (bestMove == 0)
         {
             MoveList moveList = new MoveList();
@@ -240,13 +240,14 @@ public static class Search
         bool pvNode = (beta - alpha) > 1;
         int ttMove = 0;
         int ttScore = TranspositionTable.Probe(
-                           Zobrist.hashKey, depth, alpha, beta, ply, out ttMove);
+                          Zobrist.hashKey, depth, alpha, beta, ply, out ttMove);
 
         if (ttScore != TranspositionTable.NoScore && !pvNode)
             return ttScore;
 
         int staticEval = inCheck ? -MateScore : Evaluation.Evaluate();
 
+        // Reverse futility pruning
         if (depth <= 3 &&
             !pvNode &&
             !inCheck &&
@@ -258,6 +259,7 @@ public static class Search
                 return beta;
         }
 
+        // Null move pruning
         if (depth >= 3 &&
             !pvNode &&
             !inCheck &&
@@ -299,7 +301,6 @@ public static class Search
         MoveList moveList = new MoveList();
         GenerateMoves(ref moveList);
 
-        // FIX Bug 16/9: Pass PV move at current ply, not just at root
         int pvMove = (ply < pvLength[0]) ? pvTable[0, ply] : 0;
         SortMoves(moveList, ttMove, pvMove);
 
@@ -317,14 +318,20 @@ public static class Search
             bool isPromo = GetMovePromoted(move) != 0;
             bool isQuiet = !isCapture && !isPromo;
 
+            // FIX Bug 15: also protect pvMove from futility pruning
             if (canPrune &&
                 movesSearched > 0 &&
                 isQuiet &&
-                move != ttMove)
+                move != ttMove &&
+                move != pvMove)
             {
                 anyMovePruned = true;
                 continue;
             }
+
+            // FIX Bug 12: evaluate SEE BEFORE making the move so the board
+            // state is still correct (side, bitboards, occupancies unchanged).
+            bool isLosingCapture = isCapture && !See.IsGoodCapture(move, 0);
 
             BoardState state = CopyBoard();
             if (MakeMove(move, (int)MoveFlag.allMoves) == 0)
@@ -345,8 +352,6 @@ public static class Search
             }
             else
             {
-                bool isLosingCapture = isCapture && !See.IsGoodCapture(move, 0);
-
                 if (movesSearched >= FullDepthMoves &&
                     depth >= ReductionLimit &&
                     !inCheck &&
@@ -361,6 +366,7 @@ public static class Search
                 }
                 else
                 {
+                    // Force PVS narrow re-search below
                     score = alpha + 1;
                 }
 
@@ -391,7 +397,6 @@ public static class Search
             {
                 if (isQuiet)
                 {
-                    // FIX: Use current ply (already decremented) for killer storage
                     if (killerMove1[ply] != move)
                     {
                         killerMove2[ply] = killerMove1[ply];
@@ -408,7 +413,13 @@ public static class Search
             if (score > alpha)
             {
                 if (isQuiet)
+                {
                     historyMoves[GetMovePiece(move), GetMoveTarget(move)] += depth * depth;
+
+                    // FIX Bug 17: cap history to prevent integer overflow in long games
+                    if (historyMoves[GetMovePiece(move), GetMoveTarget(move)] > 1_000_000)
+                        historyMoves[GetMovePiece(move), GetMoveTarget(move)] = 1_000_000;
+                }
 
                 alpha = score;
 
@@ -465,10 +476,11 @@ public static class Search
 
             if (!inCheck)
             {
+                // SEE filter — board not yet modified, so this is correct ✓
                 if (!See.IsGoodCapture(move, 0))
                     continue;
 
-                // FIX Bug 18: Handle en passant in delta pruning
+                // Delta pruning — handle en passant separately
                 int capVal;
                 if (GetMoveEnpassant(move) != 0)
                 {
@@ -481,7 +493,9 @@ public static class Search
                 }
 
                 int promoVal = GetMovePromoted(move) != 0
-                                ? GetPieceValue(GetMovePromoted(move)) - 88 : 0;
+                                   ? GetPieceValue(GetMovePromoted(move)) - 88
+                                   : 0;
+
                 if (eval + capVal + promoVal + 200 < alpha) continue;
             }
 
@@ -560,15 +574,13 @@ public static class Search
             else
                 victim = GetPieceAtSquare(target);
 
-            // FIX:  Guard against GetPieceAtSquare returning -1
-            if (victim < 0) victim = p; // fallback to pawn value
+            if (victim < 0) victim = p; // guard: fallback to pawn value
 
             int mvvScore = mvvLva[piece % 6, victim % 6];
 
-            if (See.IsGoodCapture(move, 0))
-                return mvvScore + 10000;
-            else
-                return mvvScore - 10000;
+            return See.IsGoodCapture(move, 0)
+                ? mvvScore + 10000
+                : mvvScore - 10000;
         }
 
         if (killerMove1[ply] == move) return 9000;
@@ -602,7 +614,6 @@ public static class Search
         return PieceAttacks.IsSquareAttacked(kSq, side ^ 1);
     }
 
-    // FIX Bug 8/18: Returns -1 when no piece found (same fix as in SEE)
     private static int GetPieceAtSquare(int square)
     {
         ulong mask = 1UL << square;
@@ -618,7 +629,7 @@ public static class Search
         if ((bitboards[q] & mask) != 0) return q;
         if ((bitboards[K] & mask) != 0) return K;
         if ((bitboards[k] & mask) != 0) return k;
-        return -1; // FIX: was returning 0 (= P piece index) — now returns sentinel
+        return -1;
     }
 
     private static bool HasNonPawnMaterial(int sideToCheck)
