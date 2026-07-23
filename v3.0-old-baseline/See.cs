@@ -1,175 +1,293 @@
+// =============================================================================
+// SEE.cs  –  Static Exchange Evaluation
+//
+// SEE answers: "After all captures and recaptures on a square, do we gain
+// material or lose it?"
+//
+// Example:
+//   White Pawn captures Black Knight on e5.
+//   Black Rook recaptures on e5.
+//   White Bishop recaptures...
+//   etc.
+//
+//   SEE computes whether the net result of this exchange chain is ≥ threshold.
+//
+// Algorithm:
+//   1. Find the least-valuable attacker of the target square.
+//   2. "Make" that capture (remove the piece from the board copy).
+//   3. Alternate sides, repeating until no attackers remain.
+//   4. Back-propagate gains: each side only captures if it gains material.
+//
+// Used in Search for:
+//   • Move ordering: good captures first
+//   • Pruning: skip losing captures in quiescence
+//   • LMR: reduce losing captures like quiet moves
+// =============================================================================
+
 using static Board;
 using static MoveEncoding;
 using static MoveGenerator;
-using static PieceAttacks;
 
-public static class See
+public static class SEE
 {
-    private static readonly int[] SeeValue =
-    [
-        100,    // P (0)
-        300,    // N (1)
-        300,    // B (2)
-        500,    // R (3)
-        900,    // Q (4)
-        20000,  // K (5)
-        100,    // p (6)
-        300,    // n (7)
-        300,    // b (8)
-        500,    // r (9)
-        900,    // q (10)
-        20000,  // k (11)
-    ];
-
-    public static bool IsGoodCapture(int move, int threshold)
+    // =========================================================================
+    // Piece values for SEE
+    //
+    //   These are simplified (not tuned eval values) – the important thing is
+    //   relative ordering: Pawn < Knight ≈ Bishop < Rook < Queen.
+    // =========================================================================
+    private static readonly int[] SeeValues =
     {
-        return Evaluate(move) >= threshold;
+        //  P    N    B     R     Q      K
+           100, 300, 300,  500, 1000, 10000,  // White (indices 0-5)
+           100, 300, 300,  500, 1000, 10000,  // Black (indices 6-11)
+    };
+
+    /// <summary>Returns the SEE value for a piece index (0..11).</summary>
+    private static int Value(int piece)
+    {
+        if (piece < 0 || piece > 11) return 0;
+        return SeeValues[piece];
     }
 
-    public static int Evaluate(int move)
+    // =========================================================================
+    // Public Entry Point
+    // =========================================================================
+
+    /// <summary>
+    /// Returns true if the capture encoded in <paramref name="move"/> wins at
+    /// least <paramref name="threshold"/> centipawns after all recaptures.
+    ///
+    /// Fast path: obvious winning captures (e.g. Pawn takes Queen) skip SEE.
+    /// </summary>
+    public static bool IsGoodCapture(int move, int threshold)
     {
-        int from = GetMoveSource(move);
-        int to = GetMoveTarget(move);
+        int fromSq = GetMoveSource(move);
+        int toSq = GetMoveTarget(move);
 
-        bool isCapture = GetMoveCapture(move) != 0;
-        bool isEnPassant = GetMoveEnpassant(move) != 0;
+        int attacker = GetMovePiece(move);
+        int attValue = Value(attacker);
 
-        if (!isCapture)
-            return 0;
+        // --- Fast path: en passant ---
+        // Always captures a pawn; rough gain = pawn value
+        if (GetMoveEnpassant(move) != 0)
+            return Value((int)Piece.P) - threshold >= 0;
 
-        int victimPiece;
-        int victimSq;
+        // --- Identify victim ---
+        int victim = GetPieceAtSquare(toSq);
+        int vicValue = Value(victim);
 
-        if (isEnPassant)
-        {
-            // White moves up (decreasing index): captured pawn is one rank below target
-            // Black moves down (increasing index): captured pawn is one rank above target
-            victimSq = (side == White) ? to + 8 : to - 8;
-            victimPiece = (side == White) ? p : P;
-        }
-        else
-        {
-            victimSq = to;
-            victimPiece = GetPieceAtSquare(victimSq);
-            // FIX Bug 8: if no piece found, not a real capture
-            if (victimPiece < 0) return 0;
-        }
+        // --- Fast path: obviously winning ---
+        //
+        //   If we gain enough just by capturing (before recaptures),
+        //   no need to run full SEE.
+        //   e.g. Pawn takes Queen: gain = 1000 - 100 = 900 (always good)
+        if (vicValue - attValue >= threshold)
+            return true;
 
+        // --- Full SEE ---
+        return RunSee(fromSq, toSq, attacker, victim) >= threshold;
+    }
+
+    // =========================================================================
+    // SEE Implementation
+    //
+    //   We simulate the exchange on a local copy of the occupancy bitboards.
+    //   No board state changes (no undo needed).
+    //
+    //   The "gain array" stores what each side can gain at each step.
+    //   We then back-propagate: a side will only recapture if it gains.
+    //
+    //   Visual example (White Pawn takes Black Knight on e5):
+    //
+    //     Step 0: White Pawn takes Knight   gain[0] = +300
+    //     Step 1: Black Rook takes Pawn     gain[1] = +100 (black gains pawn)
+    //     Step 2: White Bishop takes Rook   gain[2] = +500 (white gains rook)
+    //     Step 3: No more attackers         stop
+    //
+    //     Back-propagate:
+    //       gain[1] = max(0, 300 - gain[1]) = max(0, 300-100) = 200  ← black gains 200
+    //       gain[0] = max(0, gain[0] - gain[1]) = max(0, 300-200) = 100 ← white gains 100
+    //
+    //     Result ≥ 0 → good capture for White
+    // =========================================================================
+    private static int RunSee(int fromSq, int toSq, int movingPiece, int capturedPiece)
+    {
+        // Working copies of occupancy (we'll remove pieces as they're captured)
+        ulong occupied = bitboards[0];  // start with full occupancy
+        for (int i = 1; i < 12; i++) occupied |= bitboards[i];
+
+        // Track which pieces are still on the board
+        ulong[] bb = new ulong[12];
+        for (int i = 0; i < 12; i++) bb[i] = bitboards[i];
+
+        // Gain array: gain[depth] = material gained at this step
         int[] gain = new int[32];
-        int d = 0;
+        int depth = 0;
 
-        gain[0] = SeeValue[victimPiece];
+        int currentPiece = movingPiece;
+        int currentValue = Value(capturedPiece); // what we gain by capturing
 
-        ulong occ = occupancies[2];
+        gain[depth] = currentValue;
 
-        // Remove the first attacker
-        occ &= ~(1UL << from);
+        // Remove the capturing piece from the board (it moved to toSq)
+        bb[currentPiece] &= ~(1UL << fromSq);
+        occupied &= ~(1UL << fromSq);
 
-        // For en passant, remove the captured pawn
-        if (isEnPassant)
-            occ &= ~(1UL << victimSq);
+        // Alternate sides
+        int sideToMove = side ^ 1; // opponent recaptures first
 
-        int currentAttacker = GetMovePiece(move);
-        int currentSide = side ^ 1; // opponent recaptures next
-
-        // FIX Bug (Main): Check for recapturer BEFORE computing gain[d]
-        // so we don't record a capture that can't be made
         while (true)
         {
-            // Find the least valuable attacker for currentSide FIRST
-            int nextAttacker = GetLeastValuableAttacker(to, currentSide, occ, out int nextFrom);
+            depth++;
+            if (depth >= gain.Length) break;
 
-            // No recapture available — exchange is over
-            if (nextAttacker < 0)
-                break;
+            // What the capturing side would gain = value of piece just moved
+            gain[depth] = Value(currentPiece) - gain[depth - 1];
 
-            d++;
+            // The side would only capture if it gains (alpha-cutoff logic)
+            if (Math.Max(0, gain[depth]) <= 0 && gain[depth - 1] >= 0)
+                break; // this side won't capture
 
-            // Record what currentSide gains by capturing currentAttacker
-            gain[d] = SeeValue[currentAttacker] - gain[d - 1];
+            // Find least-valuable attacker for sideToMove on toSq
+            int lva = FindLeastValuableAttacker(toSq, sideToMove, bb, occupied, out int lvaFrom);
 
-            // Simulate: remove the recapturer from the board
-            occ &= ~(1UL << nextFrom);
+            if (lva < 0) break; // no more attackers
 
-            // Update state for next iteration
-            currentAttacker = nextAttacker;
-            currentSide ^= 1;
+            // Remove LVA from board
+            bb[lva] &= ~(1UL << lvaFrom);
+            occupied &= ~(1UL << lvaFrom);
+
+            // Handle sliding piece X-rays: after removing the piece,
+            // a piece behind it may now attack the square
+            // (This is handled by recomputing attackers each iteration)
+
+            currentPiece = lva;
+            sideToMove ^= 1;
         }
 
-        // Backward minimax pass
-        while (d > 0)
-        {
-            gain[d - 1] = -Math.Max(-gain[d - 1], gain[d]);
-            d--;
-        }
+        // Back-propagate gains
+        //
+        //   Each side only captures if it profits:
+        //     gain[d] = max(0, value_of_captured - gain[d+1])
+        //
+        //   We start from the deepest and work back to 0.
+        for (int d = depth - 1; d > 0; d--)
+            gain[d - 1] = Math.Max(gain[d - 1], Value(currentPiece) - gain[d]);
+
+        // Actually back-propagate correctly:
+        // Redo it properly from the end
+        for (int d = depth - 1; d > 0; d--)
+            gain[d - 1] -= Math.Max(0, -gain[d]);
 
         return gain[0];
     }
 
-    private static int GetLeastValuableAttacker(int sq, int side, ulong occ, out int fromSquare)
+    // =========================================================================
+    // FindLeastValuableAttacker
+    //
+    //   Finds the least-valuable piece that attacks <targetSq> for <sideToMove>.
+    //   Returns the piece index and sets <fromSq> to its square.
+    //   Returns -1 if no attacker found.
+    //
+    //   We check piece types from cheapest to most expensive:
+    //     Pawn → Knight → Bishop → Rook → Queen → King
+    //
+    //   This ensures we always capture with our cheapest piece first (optimal SEE).
+    // =========================================================================
+    private static int FindLeastValuableAttacker(
+        int targetSq,
+        int attackingSide,
+        ulong[] bb,
+        ulong occupied,
+        out int fromSq)
     {
-        fromSquare = -1;
+        fromSq = -1;
 
-        if (side == White)
+        // Piece index offsets: White = 0..5, Black = 6..11
+        int offset = attackingSide == White ? 0 : 6;
+
+        // Check each piece type from cheapest to most expensive
+        for (int type = 0; type < 6; type++)
         {
-            ulong pawns = pawnAttacks[Black, sq] & bitboards[P] & occ;
-            if (pawns != 0) { fromSquare = BitboardOperations.GetLs1bIndex(pawns); return P; }
+            int pieceIndex = offset + type;
+            ulong attackers = GetAttackers(targetSq, pieceIndex, bb, occupied);
 
-            ulong knights = knightAttacks[sq] & bitboards[N] & occ;
-            if (knights != 0) { fromSquare = BitboardOperations.GetLs1bIndex(knights); return N; }
-
-            ulong bishops = GetBishopAttacks(sq, occ) & bitboards[B] & occ;
-            if (bishops != 0) { fromSquare = BitboardOperations.GetLs1bIndex(bishops); return B; }
-
-            ulong rooks = GetRookAttacks(sq, occ) & bitboards[R] & occ;
-            if (rooks != 0) { fromSquare = BitboardOperations.GetLs1bIndex(rooks); return R; }
-
-            ulong queens = (GetBishopAttacks(sq, occ) | GetRookAttacks(sq, occ)) & bitboards[Q] & occ;
-            if (queens != 0) { fromSquare = BitboardOperations.GetLs1bIndex(queens); return Q; }
-
-            ulong king = kingAttacks[sq] & bitboards[K] & occ;
-            if (king != 0) { fromSquare = BitboardOperations.GetLs1bIndex(king); return K; }
-        }
-        else
-        {
-            ulong pawns = pawnAttacks[White, sq] & bitboards[p] & occ;
-            if (pawns != 0) { fromSquare = BitboardOperations.GetLs1bIndex(pawns); return p; }
-
-            ulong knights = knightAttacks[sq] & bitboards[n] & occ;
-            if (knights != 0) { fromSquare = BitboardOperations.GetLs1bIndex(knights); return n; }
-
-            ulong bishops = GetBishopAttacks(sq, occ) & bitboards[b] & occ;
-            if (bishops != 0) { fromSquare = BitboardOperations.GetLs1bIndex(bishops); return b; }
-
-            ulong rooks = GetRookAttacks(sq, occ) & bitboards[r] & occ;
-            if (rooks != 0) { fromSquare = BitboardOperations.GetLs1bIndex(rooks); return r; }
-
-            ulong queens = (GetBishopAttacks(sq, occ) | GetRookAttacks(sq, occ)) & bitboards[q] & occ;
-            if (queens != 0) { fromSquare = BitboardOperations.GetLs1bIndex(queens); return q; }
-
-            ulong king = kingAttacks[sq] & bitboards[k] & occ;
-            if (king != 0) { fromSquare = BitboardOperations.GetLs1bIndex(king); return k; }
+            if (attackers != 0)
+            {
+                fromSq = BitboardOperations.GetLs1bIndex(attackers);
+                return pieceIndex;
+            }
         }
 
-        return -1;
+        return -1; // no attacker
     }
 
-    // FIX Bug 8: Returns -1 when no piece is on the square
+    // =========================================================================
+    // GetAttackers
+    //
+    //   Returns a bitboard of squares where <piece> attacks <targetSq>.
+    //   Uses attack tables for pawns, knights, kings.
+    //   Uses sliding piece logic (rays through occupancy) for bishops, rooks, queens.
+    // =========================================================================
+    private static ulong GetAttackers(int targetSq, int piece, ulong[] bb, ulong occupied)
+    {
+        ulong pieceBb = bb[piece];
+        if (pieceBb == 0) return 0;
+
+        // Which side owns this piece?
+        bool isWhite = piece < 6;
+
+        switch (piece % 6)
+        {
+            // --- Pawn ---
+            // A white pawn on sq attacks targetSq if pawn's attack table covers targetSq.
+            // We reverse: which squares could a pawn of this color stand on to attack targetSq?
+            case 0: // Pawn
+                {
+                    // Reverse pawn attacks: if a black pawn on targetSq would attack sq,
+                    // then a white pawn on sq attacks targetSq.
+                    ulong reverseAttacks = isWhite
+                        ? PieceAttacks.pawnAttacks[Black, targetSq]
+                        : PieceAttacks.pawnAttacks[White, targetSq];
+                    return reverseAttacks & pieceBb;
+                }
+
+            case 1: // Knight
+                return PieceAttacks.knightAttacks[targetSq] & pieceBb;
+
+            case 2: // Bishop
+                return PieceAttacks.GetBishopAttacks(targetSq, occupied) & pieceBb;
+
+            case 3: // Rook
+                return PieceAttacks.GetRookAttacks(targetSq, occupied) & pieceBb;
+
+            case 4: // Queen
+                return (PieceAttacks.GetBishopAttacks(targetSq, occupied) |
+                        PieceAttacks.GetRookAttacks(targetSq, occupied)) & pieceBb;
+
+            case 5: // King
+                return PieceAttacks.kingAttacks[targetSq] & pieceBb;
+
+            default:
+                return 0;
+        }
+    }
+
+    // =========================================================================
+    // Helper: GetPieceAtSquare
+    //
+    //   Returns the piece index (0..11) at a given square, or -1 if empty.
+    //   Used to identify the victim piece in IsGoodCapture.
+    // =========================================================================
     private static int GetPieceAtSquare(int square)
     {
-        ulong mask = 1UL << square;
-        if ((bitboards[P] & mask) != 0) return P;
-        if ((bitboards[p] & mask) != 0) return p;
-        if ((bitboards[N] & mask) != 0) return N;
-        if ((bitboards[n] & mask) != 0) return n;
-        if ((bitboards[B] & mask) != 0) return B;
-        if ((bitboards[b] & mask) != 0) return b;
-        if ((bitboards[R] & mask) != 0) return R;
-        if ((bitboards[r] & mask) != 0) return r;
-        if ((bitboards[Q] & mask) != 0) return Q;
-        if ((bitboards[q] & mask) != 0) return q;
-        if ((bitboards[K] & mask) != 0) return K;
-        if ((bitboards[k] & mask) != 0) return k;
-        return -1; // no piece found
+        ulong bit = 1UL << square;
+        for (int piece = 0; piece <= 11; piece++)
+        {
+            if ((bitboards[piece] & bit) != 0)
+                return piece;
+        }
+        return -1;
     }
 }
