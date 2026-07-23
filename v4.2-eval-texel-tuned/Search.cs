@@ -707,10 +707,10 @@ public static class Search
     private static int GetPieceValue(int piece) => piece switch
     {
         P or p => 88,
-        N or n => 313,
-        B or b => 330,
-        R or r => 493,
-        Q or q => 997,
+        N or n => 309,
+        B or b => 331,
+        R or r => 494,
+        Q or q => 981,
         K or k => 20000,
         _ => 0
     };

@@ -360,8 +360,8 @@ public static class Evaluation
 
     #region Material & Phase
 
-    private static readonly int[] MgMaterial = [83, 359, 381, 482, 1069, 0];
-    private static readonly int[] EgMaterial = [94, 267, 279, 503, 924, 0];
+    private static readonly int[] MgMaterial = [82, 337, 365, 477, 1025, 0];
+    private static readonly int[] EgMaterial = [94, 281, 297, 512, 936, 0];
 
     //                                          P  N  B  R  Q  K  p  n  b  r  q  k
     private static readonly int[] PhaseWeight = [0, 1, 1, 2, 4, 0, 0, 1, 1, 2, 4, 0];
