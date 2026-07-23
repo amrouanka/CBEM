@@ -57,23 +57,23 @@ public static class Evaluation
     #region Positional Bonuses / Penalties
 
     // Bishop pair
-    private const int BishopPairMg = 30;
-    private const int BishopPairEg = 50;
+    private const int BishopPairMg = 15;
+    private const int BishopPairEg = 39;
 
     // Mobility: bonus per square above baseline, penalty per square below
     //
     //   score += (moves - baseline) * weight
     //
     //   Knight baseline ~4, Bishop baseline ~6
-    private const int KnightMobMg = 2, KnightMobEg = 2, KnightMobBase = 4;
-    private const int BishopMobMg = 3, BishopMobEg = 3, BishopMobBase = 6;
+    private const int KnightMobMg = 1, KnightMobEg = 0, KnightMobBase = 4;
+    private const int BishopMobMg = 3, BishopMobEg = 1, BishopMobBase = 6;
 
     // Rook on open / semi-open file
     //
     //   Semi-open = no friendly pawns on that file
     //   Open      = no pawns at all on that file
-    private const int RookSemiOpenMg = 8, RookSemiOpenEg = 6;
-    private const int RookOpenMg = 15, RookOpenEg = 10;
+    private const int RookSemiOpenMg = 13, RookSemiOpenEg = 7;
+    private const int RookOpenMg = 45, RookOpenEg = 2;
 
     // Passed pawns (indexed by engine rank, see table below)
     //
@@ -85,20 +85,20 @@ public static class Evaluation
     private static readonly int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
 
     // Isolated pawn (no friendly pawn on adjacent files)
-    private const int IsolatedMg = -5;
-    private const int IsolatedEg = -15;
+    private const int IsolatedMg = -11;
+    private const int IsolatedEg = -3;
 
     // King on open / semi-open file (middlegame only)
     //
     //   Penalizes kings whose file (and adjacent files) lack friendly pawns.
     //
     //   Example — White king on e1, no pawns on d/e/f files:
-    //     Own file (e):    -20 (open)
-    //     Adjacent (d):     -8 (open)
-    //     Adjacent (f):     -8 (open)
-    //     Total:           -36
-    private const int KingOwnOpenMg = 20, KingOwnSemiOpenMg = 10;
-    private const int KingAdjacentOpenMg = 8, KingAdjacentSemiOpenMg = 4;
+    //     Own file (e):    -54 (open)
+    //     Adjacent (d):    -24 (open)
+    //     Adjacent (f):    -24 (open)
+    //     Total:          -102
+    private const int KingOwnOpenMg = 54, KingOwnSemiOpenMg = 14;
+    private const int KingAdjacentOpenMg = 24, KingAdjacentSemiOpenMg = 12;
 
     // Knight outpost (middlegame only)
     //
@@ -106,7 +106,7 @@ public static class Evaluation
     //     1) Knight on ranks 4–6 (engine rank 2–4 for White)
     //     2) Supported by a friendly pawn
     //     3) No enemy pawn on adjacent files can still advance to challenge it
-    private const int KnightOutpostMg = 12;
+    private const int KnightOutpostMg = 43;
 
     #endregion
 

@@ -589,7 +589,7 @@ public static class Search
             {
                 int capVal = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
                 int promoVal = GetMovePromoted(move) != 0
-                                ? GetPieceValue(GetMovePromoted(move)) - 88 : 0; // value of the lost pawn
+                                ? GetPieceValue(GetMovePromoted(move)) - 89 : 0; // value of the lost pawn
                 if (eval + capVal + promoVal + 200 < alpha) continue;
             }
 
@@ -707,10 +707,10 @@ public static class Search
     private static int GetPieceValue(int piece) => piece switch
     {
         P or p => 88,
-        N or n => 309,
-        B or b => 331,
-        R or r => 494,
-        Q or q => 981,
+        N or n => 313,
+        B or b => 330,
+        R or r => 493,
+        Q or q => 997,
         K or k => 20000,
         _ => 0
     };

@@ -39,10 +39,32 @@ using static MoveGenerator;
 /// </summary>
 public static class Evaluation
 {
+    private const int PawnMgAdjust = 0;
+    private const int PawnEgAdjust = 0;
+    private const int KnightMgAdjust = 0;
+    private const int KnightEgAdjust = 0;
+    private const int BishopMgAdjust = 0;
+    private const int BishopEgAdjust = 0;
+    private const int RookMgAdjust = 0;
+    private const int RookEgAdjust = 0;
+    private const int QueenMgAdjust = 0;
+    private const int QueenEgAdjust = 0;
+
     public static EvalWeights GetCurrentWeights()
     {
         return new EvalWeights
         {
+            PawnMgAdjust = PawnMgAdjust,
+            PawnEgAdjust = PawnEgAdjust,
+            KnightMgAdjust = KnightMgAdjust,
+            KnightEgAdjust = KnightEgAdjust,
+            BishopMgAdjust = BishopMgAdjust,
+            BishopEgAdjust = BishopEgAdjust,
+            RookMgAdjust = RookMgAdjust,
+            RookEgAdjust = RookEgAdjust,
+            QueenMgAdjust = QueenMgAdjust,
+            QueenEgAdjust = QueenEgAdjust,
+
             BishopPairMg = BishopPairMg,
             BishopPairEg = BishopPairEg,
 
@@ -75,6 +97,21 @@ public static class Evaluation
     {
         int mg = f.FixedMg;
         int eg = f.FixedEg;
+
+        mg += f.PawnCountBalance * w.PawnMgAdjust;
+        eg += f.PawnCountBalance * w.PawnEgAdjust;
+
+        mg += f.KnightCountBalance * w.KnightMgAdjust;
+        eg += f.KnightCountBalance * w.KnightEgAdjust;
+
+        mg += f.BishopCountBalance * w.BishopMgAdjust;
+        eg += f.BishopCountBalance * w.BishopEgAdjust;
+
+        mg += f.RookCountBalance * w.RookMgAdjust;
+        eg += f.RookCountBalance * w.RookEgAdjust;
+
+        mg += f.QueenCountBalance * w.QueenMgAdjust;
+        eg += f.QueenCountBalance * w.QueenEgAdjust;
 
         mg += f.BishopPairBalance * w.BishopPairMg;
         eg += f.BishopPairBalance * w.BishopPairEg;
@@ -116,6 +153,27 @@ public static class Evaluation
         // ------------------------------------------------
         ExtractFixedBase(P, K, +1, f);
         ExtractFixedBase(p, k, -1, f);
+
+        f.PawnCountBalance =
+            BitboardOperations.CountBits(bitboards[P]) -
+            BitboardOperations.CountBits(bitboards[p]);
+
+        f.KnightCountBalance =
+            BitboardOperations.CountBits(bitboards[N]) -
+            BitboardOperations.CountBits(bitboards[n]);
+
+        f.BishopCountBalance =
+            BitboardOperations.CountBits(bitboards[B]) -
+            BitboardOperations.CountBits(bitboards[b]);
+
+        f.RookCountBalance =
+            BitboardOperations.CountBits(bitboards[R]) -
+            BitboardOperations.CountBits(bitboards[r]);
+
+        f.QueenCountBalance =
+            BitboardOperations.CountBits(bitboards[Q]) -
+            BitboardOperations.CountBits(bitboards[q]);
+
 
         // ------------------------------------------------
         // Bishop pair
@@ -302,8 +360,8 @@ public static class Evaluation
 
     #region Material & Phase
 
-    private static readonly int[] MgMaterial = [82, 337, 365, 477, 1025, 0];
-    private static readonly int[] EgMaterial = [94, 281, 297, 512, 936, 0];
+    private static readonly int[] MgMaterial = [83, 359, 381, 482, 1069, 0];
+    private static readonly int[] EgMaterial = [94, 267, 279, 503, 924, 0];
 
     //                                          P  N  B  R  Q  K  p  n  b  r  q  k
     private static readonly int[] PhaseWeight = [0, 1, 1, 2, 4, 0, 0, 1, 1, 2, 4, 0];

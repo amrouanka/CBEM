@@ -172,29 +172,21 @@ public static class TexelTuner
     private static List<IntParameter> BuildParameterList()
     {
         return new List<IntParameter>
-        {
-            new() { Name = nameof(EvalWeights.BishopPairMg), Get = w => w.BishopPairMg, Set = (w, v) => w.BishopPairMg = v, Min = 0, Max = 80 },
-            new() { Name = nameof(EvalWeights.BishopPairEg), Get = w => w.BishopPairEg, Set = (w, v) => w.BishopPairEg = v, Min = 0, Max = 120 },
+    {
+        new() { Name = nameof(EvalWeights.PawnMgAdjust),   Get = w => w.PawnMgAdjust,   Set = (w, v) => w.PawnMgAdjust = v,   Min = -15, Max = 15 },
+        new() { Name = nameof(EvalWeights.PawnEgAdjust),   Get = w => w.PawnEgAdjust,   Set = (w, v) => w.PawnEgAdjust = v,   Min = -15, Max = 15 },
 
-            new() { Name = nameof(EvalWeights.KnightMobMg), Get = w => w.KnightMobMg, Set = (w, v) => w.KnightMobMg = v, Min = 0, Max = 16 },
-            new() { Name = nameof(EvalWeights.KnightMobEg), Get = w => w.KnightMobEg, Set = (w, v) => w.KnightMobEg = v, Min = 0, Max = 16 },
-            new() { Name = nameof(EvalWeights.BishopMobMg), Get = w => w.BishopMobMg, Set = (w, v) => w.BishopMobMg = v, Min = 0, Max = 16 },
-            new() { Name = nameof(EvalWeights.BishopMobEg), Get = w => w.BishopMobEg, Set = (w, v) => w.BishopMobEg = v, Min = 0, Max = 16 },
+        new() { Name = nameof(EvalWeights.KnightMgAdjust), Get = w => w.KnightMgAdjust, Set = (w, v) => w.KnightMgAdjust = v, Min = -30, Max = 30 },
+        new() { Name = nameof(EvalWeights.KnightEgAdjust), Get = w => w.KnightEgAdjust, Set = (w, v) => w.KnightEgAdjust = v, Min = -30, Max = 30 },
 
-            new() { Name = nameof(EvalWeights.RookSemiOpenMg), Get = w => w.RookSemiOpenMg, Set = (w, v) => w.RookSemiOpenMg = v, Min = 0, Max = 40 },
-            new() { Name = nameof(EvalWeights.RookSemiOpenEg), Get = w => w.RookSemiOpenEg, Set = (w, v) => w.RookSemiOpenEg = v, Min = 0, Max = 30 },
-            new() { Name = nameof(EvalWeights.RookOpenMg), Get = w => w.RookOpenMg, Set = (w, v) => w.RookOpenMg = v, Min = 0, Max = 60 },
-            new() { Name = nameof(EvalWeights.RookOpenEg), Get = w => w.RookOpenEg, Set = (w, v) => w.RookOpenEg = v, Min = 0, Max = 40 },
+        new() { Name = nameof(EvalWeights.BishopMgAdjust), Get = w => w.BishopMgAdjust, Set = (w, v) => w.BishopMgAdjust = v, Min = -30, Max = 30 },
+        new() { Name = nameof(EvalWeights.BishopEgAdjust), Get = w => w.BishopEgAdjust, Set = (w, v) => w.BishopEgAdjust = v, Min = -30, Max = 30 },
 
-            new() { Name = nameof(EvalWeights.IsolatedMg), Get = w => w.IsolatedMg, Set = (w, v) => w.IsolatedMg = v, Min = -30, Max = 0 },
-            new() { Name = nameof(EvalWeights.IsolatedEg), Get = w => w.IsolatedEg, Set = (w, v) => w.IsolatedEg = v, Min = -30, Max = 0 },
+        new() { Name = nameof(EvalWeights.RookMgAdjust),   Get = w => w.RookMgAdjust,   Set = (w, v) => w.RookMgAdjust = v,   Min = -40, Max = 40 },
+        new() { Name = nameof(EvalWeights.RookEgAdjust),   Get = w => w.RookEgAdjust,   Set = (w, v) => w.RookEgAdjust = v,   Min = -40, Max = 40 },
 
-            new() { Name = nameof(EvalWeights.KingOwnOpenMg), Get = w => w.KingOwnOpenMg, Set = (w, v) => w.KingOwnOpenMg = v, Min = 0, Max = 80 },
-            new() { Name = nameof(EvalWeights.KingOwnSemiOpenMg), Get = w => w.KingOwnSemiOpenMg, Set = (w, v) => w.KingOwnSemiOpenMg = v, Min = 0, Max = 40 },
-            new() { Name = nameof(EvalWeights.KingAdjacentOpenMg), Get = w => w.KingAdjacentOpenMg, Set = (w, v) => w.KingAdjacentOpenMg = v, Min = 0, Max = 40 },
-            new() { Name = nameof(EvalWeights.KingAdjacentSemiOpenMg), Get = w => w.KingAdjacentSemiOpenMg, Set = (w, v) => w.KingAdjacentSemiOpenMg = v, Min = 0, Max = 30 },
-
-            new() { Name = nameof(EvalWeights.KnightOutpostMg), Get = w => w.KnightOutpostMg, Set = (w, v) => w.KnightOutpostMg = v, Min = 0, Max = 50 },
-        };
+        new() { Name = nameof(EvalWeights.QueenMgAdjust),  Get = w => w.QueenMgAdjust,  Set = (w, v) => w.QueenMgAdjust = v,  Min = -60, Max = 60 },
+        new() { Name = nameof(EvalWeights.QueenEgAdjust),  Get = w => w.QueenEgAdjust,  Set = (w, v) => w.QueenEgAdjust = v,  Min = -60, Max = 60 },
+    };
     }
 }

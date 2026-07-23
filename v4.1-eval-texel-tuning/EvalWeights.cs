@@ -47,6 +47,20 @@ public sealed class EvalWeights
     {
         return new EvalWeights
         {
+            FixedMgScale = FixedMgScale,
+            FixedEgScale = FixedEgScale,
+
+            PawnMgAdjust = PawnMgAdjust,
+            PawnEgAdjust = PawnEgAdjust,
+            KnightMgAdjust = KnightMgAdjust,
+            KnightEgAdjust = KnightEgAdjust,
+            BishopMgAdjust = BishopMgAdjust,
+            BishopEgAdjust = BishopEgAdjust,
+            RookMgAdjust = RookMgAdjust,
+            RookEgAdjust = RookEgAdjust,
+            QueenMgAdjust = QueenMgAdjust,
+            QueenEgAdjust = QueenEgAdjust,
+
             BishopPairMg = BishopPairMg,
             BishopPairEg = BishopPairEg,
 
@@ -79,27 +93,26 @@ public sealed class EvalWeights
     {
         StringBuilder sb = new();
 
-        sb.AppendLine($"private const int BishopPairMg = {BishopPairMg};");
-        sb.AppendLine($"private const int BishopPairEg = {BishopPairEg};");
-        sb.AppendLine();
+        int[] baseMg = [82, 337, 365, 477, 1025, 0];
+        int[] baseEg = [94, 281, 297, 512, 936, 0];
+        int[] adjMg = [PawnMgAdjust, KnightMgAdjust, BishopMgAdjust, RookMgAdjust, QueenMgAdjust, 0];
+        int[] adjEg = [PawnEgAdjust, KnightEgAdjust, BishopEgAdjust, RookEgAdjust, QueenEgAdjust, 0];
 
-        sb.AppendLine($"private const int KnightMobMg = {KnightMobMg}, KnightMobEg = {KnightMobEg}, KnightMobBase = 4;");
-        sb.AppendLine($"private const int BishopMobMg = {BishopMobMg}, BishopMobEg = {BishopMobEg}, BishopMobBase = 6;");
-        sb.AppendLine();
+        sb.Append("private static readonly int[] MgMaterial = [");
+        for (int i = 0; i < 6; i++)
+        {
+            if (i > 0) sb.Append(", ");
+            sb.Append(baseMg[i] + adjMg[i]);
+        }
+        sb.AppendLine("];");
 
-        sb.AppendLine($"private const int RookSemiOpenMg = {RookSemiOpenMg}, RookSemiOpenEg = {RookSemiOpenEg};");
-        sb.AppendLine($"private const int RookOpenMg = {RookOpenMg}, RookOpenEg = {RookOpenEg};");
-        sb.AppendLine();
-
-        sb.AppendLine($"private const int IsolatedMg = {IsolatedMg};");
-        sb.AppendLine($"private const int IsolatedEg = {IsolatedEg};");
-        sb.AppendLine();
-
-        sb.AppendLine($"private const int KingOwnOpenMg = {KingOwnOpenMg}, KingOwnSemiOpenMg = {KingOwnSemiOpenMg};");
-        sb.AppendLine($"private const int KingAdjacentOpenMg = {KingAdjacentOpenMg}, KingAdjacentSemiOpenMg = {KingAdjacentSemiOpenMg};");
-        sb.AppendLine();
-
-        sb.AppendLine($"private const int KnightOutpostMg = {KnightOutpostMg};");
+        sb.Append("private static readonly int[] EgMaterial = [");
+        for (int i = 0; i < 6; i++)
+        {
+            if (i > 0) sb.Append(", ");
+            sb.Append(baseEg[i] + adjEg[i]);
+        }
+        sb.AppendLine("];");
 
         return sb.ToString();
     }
