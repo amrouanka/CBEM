@@ -560,7 +560,7 @@ public static class Search
             else
                 victim = GetPieceAtSquare(target);
 
-            // FIX: Guard against GetPieceAtSquare returning -1
+            // FIX:  Guard against GetPieceAtSquare returning -1
             if (victim < 0) victim = p; // fallback to pawn value
 
             int mvvScore = mvvLva[piece % 6, victim % 6];
