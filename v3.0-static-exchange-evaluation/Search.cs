@@ -434,13 +434,16 @@ public static class Search
             // ── Later moves: LMR + PVS ────────────
             else
             {
-                // Late Move Reduction — reduce quiet moves that are
-                // unlikely to be best. Skip reduction if the previous
-                // move was a capture (exchange sequence in progress).
+                // ── LMR condition ─────────────────────────
+                // Reduce quiet moves AND losing captures.
+                // A losing capture (SEE < 0) is unlikely to be best
+                // and can be safely reduced like a quiet move.
+                bool isLosingCapture = isCapture && !See.IsGoodCapture(move, 0);
+
                 if (movesSearched >= FullDepthMoves &&
                     depth >= ReductionLimit &&
                     !inCheck &&
-                    isQuiet)
+                    (isQuiet || isLosingCapture))
                 {
                     int moveIndex = movesSearched < 64 ? movesSearched : 63;
                     int reduction = lmrTable[depth, moveIndex];
@@ -581,15 +584,21 @@ public static class Search
         {
             int move = moveList.moves[i];
 
-            // ── Delta pruning ─────────────────────
-            // Skip captures where even the maximum material gain
-            // plus a safety margin cannot raise alpha.
-            // Only applied when not in check.
             if (!inCheck)
             {
+                // ── SEE filter ────────────────────────────
+                // Skip captures that lose material even after
+                // the full exchange sequence settles.
+                // Example: rook takes pawn defended by queen → skip
+                if (!See.IsGoodCapture(move, 0))
+                    continue;
+
+                // ── Delta pruning ─────────────────────────
+                // Even if SEE says break-even, if we still
+                // can't reach alpha with a safety margin, skip.
                 int capVal = GetPieceValue(GetPieceAtSquare(GetMoveTarget(move)));
                 int promoVal = GetMovePromoted(move) != 0
-                                ? GetPieceValue(GetMovePromoted(move)) - 89 : 0; // value of the lost pawn
+                                ? GetPieceValue(GetMovePromoted(move)) - 88 : 0;
                 if (eval + capVal + promoVal + 200 < alpha) continue;
             }
 
@@ -675,11 +684,36 @@ public static class Search
         int piece = GetMovePiece(move);
         int target = GetMoveTarget(move);
 
-        // ── Priority 4: Captures (MVV-LVA) ───────
+        // ── Priority 4: Captures (MVV-LVA + SEE) ─
+        //
+        // Good captures (SEE >= 0) get scored high.
+        // Bad captures (SEE < 0) get scored BELOW killers.
+        //
+        // Visual ordering:
+        //   TT move       30000
+        //   Queen promo   29000
+        //   PV move       20000
+        //   Good captures 10000 + MVV-LVA score   ← searched early
+        //   Killers       8000-9000
+        //   Castling      7500
+        //   Quiet moves   history (0-7000)
+        //   Bad captures  -1 to -10000            ← searched last
         if (GetMoveCapture(move) != 0)
         {
-            int victim = GetPieceAtSquare(target);
-            return mvvLva[piece % 6, victim % 6] + 10000;
+            int victim;
+
+            // En passant: captured pawn is not on the target square
+            if (GetMoveEnpassant(move) != 0)
+                victim = (side == White) ? p : P;
+            else
+                victim = GetPieceAtSquare(target);
+
+            int mvvScore = mvvLva[piece % 6, victim % 6];
+
+            if (See.IsGoodCapture(move, 0))
+                return mvvScore + 10000;   // good capture → search early
+            else
+                return mvvScore - 10000;   // bad capture → search after killers/quiets
         }
 
         // ── Priority 5: Killer moves ──────────────
