@@ -341,6 +341,9 @@ public static class Search
             // Print UCI info
             if (!Program.debug)
             {
+                // UCI score convention: positive = engine (side to move) is better.
+                // The internal negamax score already follows this convention exactly,
+                // so we print it directly with no conversion needed.
                 Console.Write($"info score {FormatScore(score)} depth {depth} nodes {_nodes} pv ");
                 for (int i = 0; i < _pvLength[0]; i++)
                     Console.Write($"{GetMove(_pvTable[0, i])} ");
@@ -433,7 +436,7 @@ public static class Search
         if (depth <= 0) return Quiescence(alpha, beta);
 
         // --- Ply limit guard ---
-        if (_ply >= MaxPly - 1) return Evaluation.Evaluate();
+        if (_ply >= MaxPly - 1) return Evaluation.EvaluateForSearch();
 
         _nodes++;
 
@@ -453,7 +456,7 @@ public static class Search
         // --- Static evaluation ---
         // Used by pruning heuristics below.
         // If in check, we don't trust the static eval (board is volatile).
-        int staticEval = inCheck ? -MateScore : Evaluation.Evaluate();
+        int staticEval = inCheck ? -MateScore : Evaluation.EvaluateForSearch();
 
         // -----------------------------------------------------------------------
         // REVERSE FUTILITY PRUNING (RFP)
@@ -564,7 +567,7 @@ public static class Search
 
         // --- Move loop ---
         int movesSearched = 0;  // legal moves tried so far
-        int legalMoves = 0;  // total legal moves found
+        int legalMoves = 0;     // total legal moves found
         int bestScore = -Infinity;
         int bestMove = 0;
         int originalAlpha = alpha;
@@ -749,7 +752,7 @@ public static class Search
         if ((_nodes & 16_383) == 0) TimeManagement.Communicate();
         if (TimeManagement.stopped) return 0;
 
-        if (_ply >= MaxPly - 1) return Evaluation.Evaluate();
+        if (_ply >= MaxPly - 1) return Evaluation.EvaluateForSearch();
         if (halfmoveClock >= 100) return 0;
 
         _nodes++;
@@ -762,7 +765,7 @@ public static class Search
         int standPatScore = 0;
         if (!inCheck)
         {
-            standPatScore = Evaluation.Evaluate();
+            standPatScore = Evaluation.EvaluateForSearch();
             if (standPatScore >= beta) return beta;
             if (standPatScore > alpha) alpha = standPatScore;
         }
