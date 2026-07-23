@@ -3,15 +3,8 @@ using static MoveEncoding;
 using static MoveGenerator;
 using static PieceAttacks;
 
-/// <summary>
-/// Static Exchange Evaluation (SEE)
-///
-/// Simulates a sequence of captures on a single square
-/// WITHOUT making any moves on the board.
-/// </summary>
 public static class See
 {
-    // SEE piece values (by piece index P=0 up to k=11)
     private static readonly int[] SeeValue =
     [
         100,    // P (0)
@@ -37,19 +30,20 @@ public static class See
     {
         int from = GetMoveSource(move);
         int to = GetMoveTarget(move);
+
         bool isCapture = GetMoveCapture(move) != 0;
         bool isEnPassant = GetMoveEnpassant(move) != 0;
 
         if (!isCapture)
             return 0;
 
-        // Get victim piece and square
-        int victimSq;
         int victimPiece;
+        int victimSq;
 
         if (isEnPassant)
         {
-            // En passant: captured pawn is on square behind target
+            // White moves up (decreasing index): captured pawn is one rank below target
+            // Black moves down (increasing index): captured pawn is one rank above target
             victimSq = (side == White) ? to + 8 : to - 8;
             victimPiece = (side == White) ? p : P;
         }
@@ -57,49 +51,56 @@ public static class See
         {
             victimSq = to;
             victimPiece = GetPieceAtSquare(victimSq);
+            // FIX Bug 8: if no piece found, not a real capture
+            if (victimPiece < 0) return 0;
         }
 
-        // Gain[0] = value of captured piece
         int[] gain = new int[32];
-        int depth = 0;
-        gain[depth] = SeeValue[victimPiece];
+        int d = 0;
 
-        // Occupancy snapshot (Both = index 2)
+        gain[0] = SeeValue[victimPiece];
+
         ulong occ = occupancies[2];
-        // Remove attacker from source square
+
+        // Remove the first attacker
         occ &= ~(1UL << from);
-        // For en passant, remove captured pawn from board
+
+        // For en passant, remove the captured pawn
         if (isEnPassant)
             occ &= ~(1UL << victimSq);
 
-        int attackerPiece = GetMovePiece(move);
-        int sideToMove = side ^ 1;
+        int currentAttacker = GetMovePiece(move);
+        int currentSide = side ^ 1; // opponent recaptures next
 
+        // FIX Bug (Main): Check for recapturer BEFORE computing gain[d]
+        // so we don't record a capture that can't be made
         while (true)
         {
-            depth++;
+            // Find the least valuable attacker for currentSide FIRST
+            int nextAttacker = GetLeastValuableAttacker(to, currentSide, occ, out int nextFrom);
 
-            // Value of piece we're about to lose minus previous gain
-            gain[depth] = SeeValue[attackerPiece] - gain[depth - 1];
-
-            // Find least valuable attacker
-            int nextFromSq;
-            int nextAttacker = GetLeastValuableAttacker(to, sideToMove, occ, out nextFromSq);
-
+            // No recapture available — exchange is over
             if (nextAttacker < 0)
                 break;
 
-            // Remove next attacker
-            occ &= ~(1UL << nextFromSq);
-            attackerPiece = nextAttacker;
-            sideToMove ^= 1;
+            d++;
+
+            // Record what currentSide gains by capturing currentAttacker
+            gain[d] = SeeValue[currentAttacker] - gain[d - 1];
+
+            // Simulate: remove the recapturer from the board
+            occ &= ~(1UL << nextFrom);
+
+            // Update state for next iteration
+            currentAttacker = nextAttacker;
+            currentSide ^= 1;
         }
 
-        // Backward minimax
-        while (depth > 0)
+        // Backward minimax pass
+        while (d > 0)
         {
-            gain[depth - 1] = -Math.Max(-gain[depth - 1], gain[depth]);
-            depth--;
+            gain[d - 1] = -Math.Max(-gain[d - 1], gain[d]);
+            d--;
         }
 
         return gain[0];
@@ -111,104 +112,49 @@ public static class See
 
         if (side == White)
         {
-            // Pawns
             ulong pawns = pawnAttacks[Black, sq] & bitboards[P] & occ;
-            if (pawns != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(pawns);
-                return P;
-            }
+            if (pawns != 0) { fromSquare = BitboardOperations.GetLs1bIndex(pawns); return P; }
 
-            // Knights
             ulong knights = knightAttacks[sq] & bitboards[N] & occ;
-            if (knights != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(knights);
-                return N;
-            }
+            if (knights != 0) { fromSquare = BitboardOperations.GetLs1bIndex(knights); return N; }
 
-            // Bishops
             ulong bishops = GetBishopAttacks(sq, occ) & bitboards[B] & occ;
-            if (bishops != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(bishops);
-                return B;
-            }
+            if (bishops != 0) { fromSquare = BitboardOperations.GetLs1bIndex(bishops); return B; }
 
-            // Rooks
             ulong rooks = GetRookAttacks(sq, occ) & bitboards[R] & occ;
-            if (rooks != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(rooks);
-                return R;
-            }
+            if (rooks != 0) { fromSquare = BitboardOperations.GetLs1bIndex(rooks); return R; }
 
-            // Queens
             ulong queens = (GetBishopAttacks(sq, occ) | GetRookAttacks(sq, occ)) & bitboards[Q] & occ;
-            if (queens != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(queens);
-                return Q;
-            }
+            if (queens != 0) { fromSquare = BitboardOperations.GetLs1bIndex(queens); return Q; }
 
-            // King
             ulong king = kingAttacks[sq] & bitboards[K] & occ;
-            if (king != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(king);
-                return K;
-            }
+            if (king != 0) { fromSquare = BitboardOperations.GetLs1bIndex(king); return K; }
         }
         else
         {
-            // Black
             ulong pawns = pawnAttacks[White, sq] & bitboards[p] & occ;
-            if (pawns != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(pawns);
-                return p;
-            }
+            if (pawns != 0) { fromSquare = BitboardOperations.GetLs1bIndex(pawns); return p; }
 
             ulong knights = knightAttacks[sq] & bitboards[n] & occ;
-            if (knights != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(knights);
-                return n;
-            }
+            if (knights != 0) { fromSquare = BitboardOperations.GetLs1bIndex(knights); return n; }
 
             ulong bishops = GetBishopAttacks(sq, occ) & bitboards[b] & occ;
-            if (bishops != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(bishops);
-                return b;
-            }
+            if (bishops != 0) { fromSquare = BitboardOperations.GetLs1bIndex(bishops); return b; }
 
             ulong rooks = GetRookAttacks(sq, occ) & bitboards[r] & occ;
-            if (rooks != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(rooks);
-                return r;
-            }
+            if (rooks != 0) { fromSquare = BitboardOperations.GetLs1bIndex(rooks); return r; }
 
             ulong queens = (GetBishopAttacks(sq, occ) | GetRookAttacks(sq, occ)) & bitboards[q] & occ;
-            if (queens != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(queens);
-                return q;
-            }
+            if (queens != 0) { fromSquare = BitboardOperations.GetLs1bIndex(queens); return q; }
 
             ulong king = kingAttacks[sq] & bitboards[k] & occ;
-            if (king != 0)
-            {
-                fromSquare = BitboardOperations.GetLs1bIndex(king);
-                return k;
-            }
+            if (king != 0) { fromSquare = BitboardOperations.GetLs1bIndex(king); return k; }
         }
 
         return -1;
     }
 
-    // Helper to get piece at square (needed)
+    // FIX Bug 8: Returns -1 when no piece is on the square
     private static int GetPieceAtSquare(int square)
     {
         ulong mask = 1UL << square;
@@ -224,6 +170,6 @@ public static class See
         if ((bitboards[q] & mask) != 0) return q;
         if ((bitboards[K] & mask) != 0) return K;
         if ((bitboards[k] & mask) != 0) return k;
-        return 0; // empty
+        return -1; // no piece found
     }
 }
