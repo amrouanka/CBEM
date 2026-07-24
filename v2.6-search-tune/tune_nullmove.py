@@ -14,7 +14,7 @@ OPENINGS = r"C:\Users\Rania\Documents\8moves_v3.pgn"
 WORKDIR = Path(r"C:\cbem_tuning\nullmove")
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
-TC = "1+0.01"
+TC = "1+0.1"
 CONCURRENCY = 4
 ROUNDS_PER_ITER = 16
 ITERATIONS = 100
@@ -121,7 +121,7 @@ def run_match(plus_values, minus_values, iteration):
         CUTECHESS,
         "-engine", f"cmd={str(plus_cmd)}", "name=plus",
         "-engine", f"cmd={str(minus_cmd)}", "name=minus",
-        "-each", "proto=uci", "st=0.1",
+        "-each", "proto=uci", f"tc={TC}",
         "-games", "2",
         "-rounds", str(ROUNDS_PER_ITER),
         "-repeat",
