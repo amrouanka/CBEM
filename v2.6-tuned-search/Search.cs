@@ -11,14 +11,38 @@ public static class Search
     private const int MateScore = 49000;
     private const int MateThreshold = MateScore - MaxPly;
 
+    // LMR
     private const int FullDepthMoves = 4;
     private const int ReductionLimit = 3;
+    private const int LmrBase = 1;
+    private const int LmrDivisor = 2;
 
-    private const int TimeCheckMask = 16383;
+    // Aspiration
     private const int AspirationWindow = 50;
+    private const int AspirationMinDepth = 4;
     private const int AspirationRetryLimit = 3;
-    private const int RepetitionTableSize = 1024;
 
+    // Reverse futility pruning
+    private const int ReverseFutilityMaxDepth = 3;
+    private const int ReverseFutilityMarginPerDepth = 150;
+
+    // Futility pruning
+    private const int FutilityMaxDepth = 3;
+    private const int FutilityMarginPerDepth = 120;
+
+    // Null move pruning
+    private const int NullMoveMinDepth = 3;
+    private const int NullMoveBaseReduction = 3;
+    private const int NullMoveDepthDivisor = 4;
+    private const int NullMoveEvalDivisor = 200;
+    private const int NullMoveEvalBonusCap = 3;
+
+    // Quiescence
+    private const int QsDeltaMargin = 200;
+
+    // Internal
+    private const int TimeCheckMask = 16383;
+    private const int RepetitionTableSize = 1024;
     private const int AllMoves = (int)MoveFlag.allMoves;
     private const int NoSquare = (int)Square.noSquare;
 
@@ -53,16 +77,6 @@ public static class Search
 
     static Search()
     {
-        BuildLmrTable();
-    }
-
-    public static void Initialize()
-    {
-        BuildLmrTable();
-    }
-
-    private static void BuildLmrTable()
-    {
         for (int depth = 0; depth <= MaxPly; depth++)
         {
             for (int moves = 0; moves < 64; moves++)
@@ -73,10 +87,7 @@ public static class Search
                     continue;
                 }
 
-                int reduction = (int)(
-                    SearchParams.LmrBase +
-                    Math.Log(depth) * Math.Log(moves) / SearchParams.LmrDivisor);
-
+                int reduction = (int)(LmrBase + Math.Log(depth) * Math.Log(moves) / LmrDivisor);
                 if (reduction < 1) reduction = 1;
 
                 int maxReduction = depth - 2;
@@ -162,7 +173,7 @@ public static class Search
         {
             int score;
 
-            if (currentDepth < SearchParams.AspirationMinDepth)
+            if (currentDepth < AspirationMinDepth)
             {
                 score = AlphaBeta(-Infinity, Infinity, currentDepth);
             }
@@ -170,7 +181,7 @@ public static class Search
             {
                 score = AlphaBeta(alpha, beta, currentDepth);
 
-                int window = SearchParams.AspirationWindow;
+                int window = AspirationWindow;
                 int failCount = 0;
 
                 while ((score <= alpha || score >= beta) && !TimeManagement.stopped)
@@ -196,8 +207,8 @@ public static class Search
             if (TimeManagement.stopped)
                 break;
 
-            alpha = score - SearchParams.AspirationWindow;
-            beta = score + SearchParams.AspirationWindow;
+            alpha = score - AspirationWindow;
+            beta = score + AspirationWindow;
 
             completedDepth = currentDepth;
 
@@ -301,19 +312,21 @@ public static class Search
 
         int staticEval = inCheck ? -MateScore : Evaluation.Evaluate();
 
-        if (depth <= SearchParams.ReverseFutilityMaxDepth &&
+        // Reverse futility pruning
+        if (depth <= ReverseFutilityMaxDepth &&
             !pvNode &&
             !inCheck &&
             ply > 0 &&
             staticEval > -MateThreshold &&
             staticEval < MateThreshold)
         {
-            int rfpMargin = SearchParams.ReverseFutilityMarginPerDepth * depth;
+            int rfpMargin = ReverseFutilityMarginPerDepth * depth;
             if (staticEval - rfpMargin >= beta)
                 return beta;
         }
 
-        if (depth >= SearchParams.NullMoveMinDepth &&
+        // Null move pruning
+        if (depth >= NullMoveMinDepth &&
             !pvNode &&
             !inCheck &&
             ply > 0 &&
@@ -333,10 +346,10 @@ public static class Search
                 enPassant = NoSquare;
             }
 
-            int evalBonus = (staticEval - beta) / SearchParams.NullMoveEvalDivisor;
-            if (evalBonus > SearchParams.NullMoveEvalBonusCap) evalBonus = SearchParams.NullMoveEvalBonusCap;
+            int evalBonus = (staticEval - beta) / NullMoveEvalDivisor;
+            if (evalBonus > NullMoveEvalBonusCap) evalBonus = NullMoveEvalBonusCap;
 
-            int reduction = SearchParams.NullMoveBaseReduction + depth / SearchParams.NullMoveDepthDivisor + evalBonus;
+            int reduction = NullMoveBaseReduction + depth / NullMoveDepthDivisor + evalBonus;
             if (reduction > depth - 1) reduction = depth - 1;
 
             ply++;
@@ -351,10 +364,11 @@ public static class Search
                 return beta;
         }
 
+        // Futility pruning
         bool canPrune = false;
-        if (depth <= SearchParams.FutilityMaxDepth && !inCheck && !pvNode)
+        if (depth <= FutilityMaxDepth && !inCheck && !pvNode)
         {
-            int futMargin = SearchParams.FutilityMarginPerDepth * depth;
+            int futMargin = FutilityMarginPerDepth * depth;
             canPrune = staticEval + futMargin <= alpha;
         }
 
@@ -409,8 +423,8 @@ public static class Search
             }
             else
             {
-                if (movesSearched >= SearchParams.FullDepthMoves &&
-                    depth >= SearchParams.ReductionLimit &&
+                if (movesSearched >= FullDepthMoves &&
+                    depth >= ReductionLimit &&
                     !inCheck &&
                     isQuiet)
                 {
@@ -553,7 +567,7 @@ public static class Search
                 int capVal = GetPieceValue(GetPieceAtSquare(target));
                 int promoVal = promoted != 0 ? GetPieceValue(promoted) - 89 : 0;
 
-                if (eval + capVal + promoVal + SearchParams.QsDeltaMargin < alpha)
+                if (eval + capVal + promoVal + QsDeltaMargin < alpha)
                     continue;
             }
 
