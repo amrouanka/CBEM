@@ -1,290 +1,151 @@
 using static Board;
 using static PieceAttacks;
 using static MoveGenerator;
-using static BitboardOperations;
 
-// =============================================================================
-// Evaluation.cs
-//
-// Scores the current position using tapered evaluation:
-//
-//   finalScore = (middlegameScore * mgPhase + endgameScore * egPhase) / 24
-//
-//   mgPhase = number of non-pawn pieces still on the board (max 24)
-//   egPhase = 24 - mgPhase
-//
-//   As pieces come off the board, the score smoothly shifts from
-//   middlegame weights to endgame weights.
-//
-// Visual:
-//
-//   Opening          Middlegame         Endgame
-//   phase=24         phase=12           phase=0
-//   100% MG          50% MG + 50% EG    100% EG
-//   ────────────────────────────────────────────▶
-//
-// Features scored:
-//   ✓ Material + piece-square tables (tapered)
-//   ✓ Bishop pair bonus
-//   ✓ Passed pawns
-//   ✓ Isolated pawns
-//   ✓ Knight + bishop mobility
-//   ✓ Rook on open / semi-open files
-//   ✓ King open-file exposure penalty
-//   ✓ Knight outposts
-//
-// Score conventions:
-//   Evaluate()          → standard:  positive = White is better
-//   EvaluateForSearch() → negamax:   positive = side to move is better
-//
-// Always use:
-//   • EvaluateForSearch() inside alpha-beta and quiescence search
-//   • Evaluate() for debugging, printing, tests
-// =============================================================================
+/// <summary>
+/// Tapered evaluation with PeSTO piece-square tables and positional features.
+///
+/// Board square mapping:
+///
+///     a8=0  b8=1  c8=2  d8=3  e8=4  f8=5  g8=6  h8=7
+///     a7=8  b7=9  ...                             h7=15
+///     ...
+///     a2=48 ...                                   h2=55
+///     a1=56 b1=57 c1=58 d1=59 e1=60 f1=61 g1=62 h1=63
+///
+///     rank = square / 8    (0 = rank 8, 7 = rank 1)
+///     file = square % 8    (0 = a-file, 7 = h-file)
+///
+/// Score convention:
+///     Positive = White is better.
+///     Negated at the end if Black is to move.
+///
+/// Proven features (kept):
+///     ✓ Material + PST (tapered)
+///     ✓ Bishop pair
+///     ✓ Passed pawns
+///     ✓ Isolated pawns
+///     ✓ Knight + bishop mobility
+///     ✓ Rook open / semi-open files
+///     ✓ King open-file penalty
+///     ✓ Knight outposts
+///
+/// Tested and rejected:
+///     ✗ Doubled pawns
+///     ✗ Rook on 7th rank
+///     ✗ Bishop outposts
+///     ✗ Connected passed pawns
+///     ✗ Pawn shield king safety
+/// </summary>
 public static class Evaluation
 {
-    // =========================================================================
-    // Dimensions
-    // =========================================================================
+    // ================================================================
+    //  Constants
+    // ================================================================
 
-    private const int PieceTypeCount = 6;   // P N B R Q K
-    private const int PieceCount = 12;  // P N B R Q K p n b r q k
-    private const int SquareCount = 64;
+    #region Material & Phase
 
-    // =========================================================================
-    // Game Phase
-    //
-    //   Tracks how far we are into the endgame.
-    //   Each piece type contributes a weight when it is on the board:
-    //
-    //     Pawn   = 0  (pawns don't change the game phase)
-    //     Knight = 1
-    //     Bishop = 1
-    //     Rook   = 2
-    //     Queen  = 4
-    //     King   = 0  (kings are always present)
-    //
-    //   Max total = 2*(1+1+2+4) × 2 sides = 24
-    //
-    //   Visual:
-    //     Start of game:  phase=24  → fully middlegame weights
-    //     All queens off: phase=16
-    //     Only pawns+kings: phase=0 → fully endgame weights
-    // =========================================================================
+    private static readonly int[] MgMaterial = [82, 337, 365, 477, 1025, 0];
+    private static readonly int[] EgMaterial = [94, 281, 297, 512, 936, 0];
+
+    //                                          P  N  B  R  Q  K  p  n  b  r  q  k
+    private static readonly int[] PhaseWeight = [0, 1, 1, 2, 4, 0, 0, 1, 1, 2, 4, 0];
     private const int TotalPhase = 24;
 
-    private static readonly int[] PhaseWeights =
-    {
-        //  P  N  B  R  Q  K    p  n  b  r  q  k
-            0, 1, 1, 2, 4, 0,  0, 1, 1, 2, 4, 0,
-    };
+    #endregion
 
-    // =========================================================================
-    // Material Values (centipawns)
-    //
-    //   Separate values for middlegame (Mg) and endgame (Eg).
-    //   Example: a pawn is worth 82cp in the middlegame, 94cp in the endgame
-    //   (slightly more valuable in the endgame because fewer pieces exist).
-    //
-    //   Index:  0=P  1=N  2=B  3=R  4=Q  5=K
-    // =========================================================================
-    private static readonly int[] MiddlegameMaterial = { 82, 337, 365, 477, 1025, 0 };
-    private static readonly int[] EndgameMaterial = { 94, 281, 297, 512, 936, 0 };
+    #region Positional Bonuses / Penalties
 
-    // =========================================================================
-    // Positional Bonuses and Penalties
-    // =========================================================================
+    // Bishop pair
+    private const int BishopPairMg = 15;
+    private const int BishopPairEg = 39;
 
-    // --- Bishop pair ---
+    // Mobility: bonus per square above baseline, penalty per square below
     //
-    //   Two bishops together control both diagonal colors.
-    //   This gives a structural advantage worth a small bonus.
+    //   score += (moves - baseline) * weight
     //
-    //   Visual: having B on light + B on dark squares = bishop pair
-    private const int BishopPairBonusMg = 15;
-    private const int BishopPairBonusEg = 39; // more valuable in open endgames
+    //   Knight baseline ~4, Bishop baseline ~6
+    private const int KnightMobMg = 1, KnightMobEg = 0, KnightMobBase = 4;
+    private const int BishopMobMg = 3, BishopMobEg = 1, BishopMobBase = 6;
 
-    // --- Knight mobility ---
+    // Rook on open / semi-open file
     //
-    //   Bonus per square the knight can reach, relative to a baseline of 4.
-    //
-    //   mobility = (number of reachable squares) - baseline
-    //   score   += mobility * weight
-    //
-    //   Example: knight with 6 reachable squares → mobility = 6 - 4 = +2
-    //            knight with 2 reachable squares → mobility = 2 - 4 = -2 (penalty)
-    private const int KnightMobilityBaseline = 4;
-    private const int KnightMobilityMgWeight = 1;
-    private const int KnightMobilityEgWeight = 0;
+    //   Semi-open = no friendly pawns on that file
+    //   Open      = no pawns at all on that file
+    private const int RookSemiOpenMg = 13, RookSemiOpenEg = 7;
+    private const int RookOpenMg = 45, RookOpenEg = 2;
 
-    // --- Bishop mobility ---
+    // Passed pawns (indexed by engine rank, see table below)
     //
-    //   Same idea as knight mobility but bishops typically cover more squares.
-    //   Baseline is higher because an unblocked bishop should have ~7-9 squares.
-    private const int BishopMobilityBaseline = 6;
-    private const int BishopMobilityMgWeight = 3;
-    private const int BishopMobilityEgWeight = 1;
+    //   Engine rank:    0    1    2    3    4    5    6    7
+    //   Chess rank:     8    7    6    5    4    3    2    1
+    //   White pawn:   (impossible)  ←── advancing ──→  (start)
+    //   Black mirror: mirroredRank = 7 - rank
+    private static readonly int[] PassedMg = [0, 15, 15, 17, 10, 6, 0, 0];
+    private static readonly int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
 
-    // --- Rook file bonuses ---
-    //
-    //   A rook is stronger when its file has no pawns blocking it.
-    //
-    //   Semi-open file: no FRIENDLY pawns on this file (enemy pawn may exist)
-    //   Open file:      no pawns at all on this file
-    //
-    //   Visual:
-    //     . . . . . . . .    ← no pawns on d-file
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . . . . . . . .    open file → rook gets RookOpenFileBonusMg
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . . . p . . . .    ← enemy pawn blocks: semi-open for White rook
-    //     . . . R . . . .    ← rook here
-    private const int RookSemiOpenFileBonusMg = 13;
-    private const int RookSemiOpenFileBonusEg = 7;
-    private const int RookOpenFileBonusMg = 45;
-    private const int RookOpenFileBonusEg = 2;
+    // Isolated pawn (no friendly pawn on adjacent files)
+    private const int IsolatedMg = -11;
+    private const int IsolatedEg = -3;
 
-    // --- Passed pawn bonuses ---
+    // King on open / semi-open file (middlegame only)
     //
-    //   A passed pawn has no enemy pawns on its file or adjacent files
-    //   that can stop it from promoting.
+    //   Penalizes kings whose file (and adjacent files) lack friendly pawns.
     //
-    //   Indexed by ENGINE rank (0 = rank 8, 7 = rank 1):
-    //
-    //   Engine rank:  0    1    2    3    4    5    6    7
-    //   Chess rank:   8    7    6    5    4    3    2    1
-    //
-    //   Visual (White pawn advancing up the board):
-    //
-    //     rank 8 [ 0] ← promotion square (impossible to be here)
-    //     rank 7 [ 1] ← very close → huge bonus (+97 eg)
-    //     rank 6 [ 2] ← close      → large bonus (+55 eg)
-    //     rank 5 [ 3] ← halfway    → medium bonus (+36 eg)
-    //     rank 4 [ 4] ← early      → small bonus  (+17 eg)
-    //     rank 3 [ 5] ← starting   → tiny bonus   (+12 eg)
-    //     rank 2 [ 6] ← impossible for passed pawn
-    //     rank 1 [ 7] ← impossible
-    //
-    //   Black passed pawns use mirrored rank: rank = 7 - (square / 8)
-    private static readonly int[] PassedPawnBonusMg = { 0, 15, 15, 17, 10, 6, 0, 0 };
-    private static readonly int[] PassedPawnBonusEg = { 0, 97, 55, 36, 17, 12, 0, 0 };
+    //   Example — White king on e1, no pawns on d/e/f files:
+    //     Own file (e):    -54 (open)
+    //     Adjacent (d):    -24 (open)
+    //     Adjacent (f):    -24 (open)
+    //     Total:          -102
+    private const int KingOwnOpenMg = 54, KingOwnSemiOpenMg = 14;
+    private const int KingAdjacentOpenMg = 24, KingAdjacentSemiOpenMg = 12;
 
-    // --- Isolated pawn penalty ---
+    // Knight outpost (middlegame only)
     //
-    //   A pawn is isolated if it has no friendly pawns on either adjacent file.
-    //   It cannot be defended by another pawn and is a long-term weakness.
-    //
-    //   Visual:
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . P . . . P . .   ← these pawns support each other
-    //     . . . . . . . .
-    //     . . . P . . . .   ← this pawn is isolated (no neighbors on c or e file)
-    //     . . . . . . . .
-    private const int IsolatedPawnPenaltyMg = -11;
-    private const int IsolatedPawnPenaltyEg = -3;
+    //   Conditions:
+    //     1) Knight on ranks 4–6 (engine rank 2–4 for White)
+    //     2) Supported by a friendly pawn
+    //     3) No enemy pawn on adjacent files can still advance to challenge it
+    private const int KnightOutpostMg = 43;
 
-    // --- King file exposure penalties (middlegame only) ---
-    //
-    //   A king is safer behind a wall of pawns.
-    //   If the king's file (or adjacent files) have no friendly pawns,
-    //   the king is exposed to rook / queen attacks along that file.
-    //
-    //   We check 3 files: the king's own file + the two adjacent files.
-    //
-    //   Visual (White king on g1, no pawns on f/g/h files):
-    //
-    //     . . . . . . . .
-    //     . . . . . p p .   ← enemy pawns advancing
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . . . . . P . .   ← only f-pawn, g and h are open
-    //     . . . . R . K .   ← king exposed on g and h files
-    //
-    //   Penalty breakdown for this king:
-    //     own file g (open):      -54
-    //     adjacent file f (semi): -12  (f-pawn exists)
-    //     adjacent file h (open): -24
-    //     total:                  -90
-    private const int KingOwnOpenFilePenaltyMg = 54;
-    private const int KingOwnSemiOpenFilePenaltyMg = 14;
-    private const int KingAdjacentOpenFilePenaltyMg = 24;
-    private const int KingAdjacentSemiOpenFilePenaltyMg = 12;
+    #endregion
 
-    // --- Knight outpost bonus (middlegame only) ---
+    // ================================================================
+    //  Piece-Square Tables (PeSTO)
+    // ================================================================
     //
-    //   A knight on an outpost square is:
-    //     1. On rank 4, 5, or 6 (engine ranks 2–4 for White, 3–5 for Black)
-    //     2. Supported by a friendly pawn (pawn attacks the knight's square)
-    //     3. Cannot be chased away by an enemy pawn
+    //  Layout matches engine square mapping: index 0 = a8, index 63 = h1.
     //
-    //   An outpost knight is extremely stable and hard to dislodge.
-    //
-    //   Visual (White knight on d5):
-    //
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . . x . x . . .   ← no Black pawns on c or e files ahead
-    //     . . . N . . . .   ← knight on d5 (engine rank 3)
-    //     . . . P . . . .   ← White pawn on d4 supports the knight
-    //     . . . . . . . .
-    //     . . . . . . . .
-    //     . . . . . . . .
-    private const int KnightOutpostBonusMg = 43;
+    //  White reads PST[square] directly.
+    //  Black reads PST[square ^ 56] (vertical mirror).
 
-    // =========================================================================
-    // Piece-Square Tables (PeSTO)
-    //
-    //   Each piece type has a table of 64 values (one per square).
-    //   The value reflects how good it is for that piece to be on that square.
-    //
-    //   Layout matches engine square mapping:
-    //     index 0  = a8 (top-left)
-    //     index 63 = h1 (bottom-right)
-    //
-    //   White reads the table directly:  MgPst[piece][square]
-    //   Black reads the mirrored table:  MgPst[piece][square ^ 56]
-    //
-    //     square ^ 56 flips the rank:
-    //       square 0  (a8) ↔ square 56 (a1)
-    //       square 7  (h8) ↔ square 63 (h1)
-    //
-    //   This means both sides read "good squares" from their own perspective.
-    // =========================================================================
+    #region PST Data
 
-    private static readonly int[][] MiddlegamePst =
+    private static readonly int[][] MgPst =
     [
-        // Pawn MG
-        // Pawns on rank 7 (about to promote) get big bonuses.
-        // Central pawns get bonuses for controlling the center.
+        // Pawn
         [
-              0,   0,   0,   0,   0,   0,   0,   0,   // rank 8 (impossible)
-             98, 134,  61,  95,  68, 126,  34, -11,   // rank 7 (about to promote)
-             -6,   7,  26,  31,  65,  56,  25, -20,   // rank 6
-            -14,  13,   6,  21,  23,  12,  17, -23,   // rank 5
-            -27,  -2,  -5,  12,  17,   6,  10, -25,   // rank 4
-            -26,  -4,  -4, -10,   3,   3,  33, -12,   // rank 3
-            -35,  -1, -20, -23, -15,  24,  38, -22,   // rank 2 (starting rank)
-              0,   0,   0,   0,   0,   0,   0,   0,   // rank 1 (impossible)
+              0,   0,   0,   0,   0,   0,   0,   0,
+             98, 134,  61,  95,  68, 126,  34, -11,
+             -6,   7,  26,  31,  65,  56,  25, -20,
+            -14,  13,   6,  21,  23,  12,  17, -23,
+            -27,  -2,  -5,  12,  17,   6,  10, -25,
+            -26,  -4,  -4, -10,   3,   3,  33, -12,
+            -35,  -1, -20, -23, -15,  24,  38, -22,
+              0,   0,   0,   0,   0,   0,   0,   0,
         ],
-        // Knight MG
-        // Knights are terrible on the rim and strong in the center.
+        // Knight
         [
-            -167, -89, -34, -49,  61, -97, -15, -107,  // rank 8 (corner = terrible)
+            -167, -89, -34, -49,  61, -97, -15, -107,
              -73, -41,  72,  36,  23,  62,   7,  -17,
              -47,  60,  37,  65,  84, 129,  73,   44,
               -9,  17,  19,  53,  37,  69,  18,   22,
              -13,   4,  16,  13,  28,  19,  21,   -8,
              -23,  -9,  12,  10,  19,  17,  25,  -16,
              -29, -53, -12,  -3,  -1,  18, -14,  -19,
-            -105, -21, -58, -33, -17, -28, -19,  -23,  // rank 1 (corner = terrible)
+            -105, -21, -58, -33, -17, -28, -19,  -23,
         ],
-        // Bishop MG
-        // Bishops like long diagonals and open positions.
+        // Bishop
         [
             -29,   4, -82, -37, -25, -42,   7,  -8,
             -26,  16, -18, -13,  30,  59,  18, -47,
@@ -295,8 +156,7 @@ public static class Evaluation
               4,  15,  16,   0,   7,  21,  33,   1,
             -33,  -3, -14, -21, -13, -12, -39, -21,
         ],
-        // Rook MG
-        // Rooks like open files and the 7th rank.
+        // Rook
         [
              32,  42,  32,  51,  63,   9,  31,  43,
              27,  32,  58,  62,  80,  67,  26,  44,
@@ -307,8 +167,7 @@ public static class Evaluation
             -44, -16, -20,  -9,  -1,  11,  -6, -71,
             -19, -13,   1,  17,  16,   7, -37, -26,
         ],
-        // Queen MG
-        // Queens are flexible. Slightly penalized for early development.
+        // Queen
         [
             -28,   0,  29,  12,  59,  44,  43,  45,
             -24, -39,  -5,   1, -16,  57,  28,  54,
@@ -319,8 +178,7 @@ public static class Evaluation
             -35,  -8,  11,   2,   8,  15,  -3,   1,
              -1, -18,  -9,  10, -15, -25, -31, -50,
         ],
-        // King MG
-        // King wants to castle and stay safe behind pawns in the middlegame.
+        // King
         [
             -65,  23,  16, -15, -56, -34,   2,  13,
              29,  -1, -20,  -7,  -8,  -4, -38, -29,
@@ -329,26 +187,24 @@ public static class Evaluation
             -49,  -1, -27, -39, -46, -44, -33, -51,
             -14, -14, -22, -46, -44, -30, -15, -27,
               1,   7,  -8, -64, -43, -16,   9,   8,
-            -15,  36,  12, -54,   8, -28,  24,  14,  // rank 1: castled positions get bonus
+            -15,  36,  12, -54,   8, -28,  24,  14,
         ],
     ];
 
-    private static readonly int[][] EndgamePst =
+    private static readonly int[][] EgPst =
     [
-        // Pawn EG
-        // Passed pawns near promotion are extremely valuable in the endgame.
+        // Pawn
         [
-              0,   0,   0,   0,   0,   0,   0,   0,   // rank 8
-            178, 173, 158, 134, 147, 132, 165, 187,   // rank 7 ← massive bonus
-             94, 100,  85,  67,  56,  53,  82,  84,   // rank 6
-             32,  24,  13,   5,  -2,   4,  17,  17,   // rank 5
-             13,   9,  -3,  -7,  -7,  -8,   3,  -1,   // rank 4
-              4,   7,  -6,   1,   0,  -5,  -1,  -8,   // rank 3
-             13,   8,   8,  10,  13,   0,   2,  -7,   // rank 2
-              0,   0,   0,   0,   0,   0,   0,   0,   // rank 1
+              0,   0,   0,   0,   0,   0,   0,   0,
+            178, 173, 158, 134, 147, 132, 165, 187,
+             94, 100,  85,  67,  56,  53,  82,  84,
+             32,  24,  13,   5,  -2,   4,  17,  17,
+             13,   9,  -3,  -7,  -7,  -8,   3,  -1,
+              4,   7,  -6,   1,   0,  -5,  -1,  -8,
+             13,   8,   8,  10,  13,   0,   2,  -7,
+              0,   0,   0,   0,   0,   0,   0,   0,
         ],
-        // Knight EG
-        // Knights prefer the center even in the endgame (but less extreme).
+        // Knight
         [
              -58, -38, -13, -28, -31, -27, -63, -99,
              -25,  -8, -25,  -2,  -9, -25, -24, -52,
@@ -359,7 +215,7 @@ public static class Evaluation
              -42, -20, -10,  -5,  -2, -20, -23, -44,
              -29, -51, -23, -15, -22, -18, -50, -64,
         ],
-        // Bishop EG
+        // Bishop
         [
             -14, -21, -11,  -8,  -7,  -9, -17, -24,
              -8,  -4,   7, -12,  -3, -13,  -4, -14,
@@ -370,7 +226,7 @@ public static class Evaluation
             -14, -18,  -7,  -1,   4,  -9, -15, -27,
             -23,  -9, -23,  -5,  -9, -16,  -5, -17,
         ],
-        // Rook EG
+        // Rook
         [
              13,  10,  18,  15,  12,  12,   8,   5,
              11,  13,  13,  11,  -3,   3,   8,   3,
@@ -381,7 +237,7 @@ public static class Evaluation
              -6,  -6,   0,   2,  -9,  -9, -11,  -3,
              -9,   2,   3,  -1,  -5, -13,   4, -20,
         ],
-        // Queen EG
+        // Queen
         [
              -9,  22,  22,  27,  27,  19,  10,  20,
             -17,  20,  32,  41,  58,  25,  30,   0,
@@ -392,8 +248,7 @@ public static class Evaluation
             -22, -23, -30, -16, -16, -23, -36, -32,
             -33, -28, -22, -43,  -5, -32, -20, -41,
         ],
-        // King EG
-        // In the endgame the king becomes an active piece and moves to the center.
+        // King
         [
             -74, -35, -18, -18, -11,  15,   4, -17,
             -12,  17,  14,  17,  17,  38,  23,  11,
@@ -406,719 +261,397 @@ public static class Evaluation
         ],
     ];
 
-    // =========================================================================
-    // Precomputed Lookup Tables
-    //
-    //   Built once at startup in the static constructor.
-    //   Never modified after initialization.
-    // =========================================================================
+    #endregion
 
-    // Combined material + PST score per piece per square.
-    // MiddlegameScores[piece, square] = MiddlegameMaterial[type] + MiddlegamePst[type][square]
-    // Covers all 12 piece indices (White 0–5, Black 6–11).
-    private static readonly int[,] MiddlegameScores = new int[PieceCount, SquareCount];
-    private static readonly int[,] EndgameScores = new int[PieceCount, SquareCount];
+    // ================================================================
+    //  Precomputed Lookup Tables
+    // ================================================================
 
-    // FileMasks[f] = bitboard with all squares on file f set.
-    //
-    //   FileMasks[0] = a-file = squares 0,8,16,24,32,40,48,56
-    //   FileMasks[7] = h-file = squares 7,15,23,31,39,47,55,63
-    private static readonly ulong[] FileMasks = new ulong[8];
+    // Material + PST combined: MgTable[piece, square], EgTable[piece, square]
+    //   White pieces 0..5, Black pieces 6..11
+    private static readonly int[,] MgTable = new int[12, 64];
+    private static readonly int[,] EgTable = new int[12, 64];
 
-    // AdjacentFileMasks[f] = bitboard of squares on the files immediately
-    // left and right of file f.
-    //
-    //   AdjacentFileMasks[3] (d-file) = c-file | e-file
-    //   Used to detect isolated pawns (no friendly pawn on adjacent files).
-    private static readonly ulong[] AdjacentFileMasks = new ulong[8];
+    //  FileMask[f]          = all 8 squares on file f
+    //  AdjacentFiles[f]     = all squares on files f-1 and f+1
+    //  WhitePassedMask[sq]  = same + adjacent files, ranks ahead for White
+    //  BlackPassedMask[sq]  = same + adjacent files, ranks ahead for Black
+    //  WhiteOutpostMask[sq] = adjacent files only, ranks ahead for White
+    //  BlackOutpostMask[sq] = adjacent files only, ranks ahead for Black
+    private static readonly ulong[] FileMask = new ulong[8];
+    private static readonly ulong[] AdjacentFiles = new ulong[8];
+    private static readonly ulong[] WhitePassedMask = new ulong[64];
+    private static readonly ulong[] BlackPassedMask = new ulong[64];
+    private static readonly ulong[] WhiteOutpostMask = new ulong[64];
+    private static readonly ulong[] BlackOutpostMask = new ulong[64];
 
-    // WhitePassedPawnMasks[sq] = squares on same + adjacent files, all ranks
-    // ABOVE sq (closer to rank 8).
-    //
-    //   If (WhitePassedPawnMasks[sq] & blackPawns) == 0, the White pawn on sq
-    //   is passed — no Black pawn can stop it.
-    //
-    //   Visual for White pawn on d4 (sq=35):
-    //
-    //     X X X . . . . .   rank 8  ← all these squares are in the mask
-    //     . . X X X . . .
-    //     . . X X X . . .
-    //     . . X X X . . .   rank 5
-    //     . . . P . . . .   rank 4  ← pawn here (sq=35)
-    //     (ranks below not included)
-    private static readonly ulong[] WhitePassedPawnMasks = new ulong[SquareCount];
-    private static readonly ulong[] BlackPassedPawnMasks = new ulong[SquareCount];
+    // ================================================================
+    //  Initialization
+    // ================================================================
 
-    // WhiteOutpostMasks[sq] = squares on ADJACENT files only, all ranks above sq.
-    //
-    //   Used to check if an enemy pawn can still advance to challenge the outpost.
-    //   (Same-file pawns can't attack diagonally, so we exclude the same file.)
-    //
-    //   Visual for White knight on d5 (sq=27):
-    //
-    //     . . X . X . . .   rank 8  ← adjacent file squares ahead
-    //     . . X . X . . .   rank 7
-    //     . . X . X . . .   rank 6
-    //     . . . N . . . .   rank 5  ← knight here
-    //     (ranks below not included)
-    //
-    //   If a Black pawn is anywhere in this mask, it could eventually
-    //   advance and chase the knight off the outpost.
-    private static readonly ulong[] WhiteOutpostMasks = new ulong[SquareCount];
-    private static readonly ulong[] BlackOutpostMasks = new ulong[SquareCount];
-
-    // =========================================================================
-    // Static Constructor — runs once when the class is first used
-    // =========================================================================
     static Evaluation()
     {
-        InitializeFileMasks();
-        InitializeAdjacentFileMasks();
-        InitializePassedPawnMasks();
-        InitializeOutpostMasks();
-        InitializePieceSquareTables();
+        InitFileMasks();
+        InitAdjacentFileMasks();
+        InitPassedPawnMasks();
+        InitOutpostMasks();
+        InitMaterialPstTables();
     }
 
-    // =========================================================================
-    // Public Evaluation Entry Points
-    // =========================================================================
-
-    /// <summary>
-    /// Returns the position score from White's perspective.
-    ///   Positive = White is better.
-    ///   Negative = Black is better.
-    ///
-    /// Use this for debugging, logging, and test output.
-    /// Do NOT use this inside the search (use EvaluateForSearch instead).
-    /// </summary>
-    public static int Evaluate()
+    private static void InitFileMasks()
     {
-        int middlegameScore = 0;
-        int endgameScore = 0;
-        int phase = 0;
+        for (int f = 0; f < 8; f++)
+            for (int r = 0; r < 8; r++)
+                FileMask[f] |= 1UL << (r * 8 + f);
+    }
 
-        ScoreMaterialAndPieceSquares(ref middlegameScore, ref endgameScore, ref phase);
-        ScoreBishopPairs(ref middlegameScore, ref endgameScore);
-        ScorePassedPawns(ref middlegameScore, ref endgameScore);
-        ScoreIsolatedPawns(ref middlegameScore, ref endgameScore);
-        ScoreMobility(ref middlegameScore, ref endgameScore);
-        ScoreRookFiles(ref middlegameScore, ref endgameScore);
-        ScoreKingExposure(ref middlegameScore);
-        ScoreKnightOutposts(ref middlegameScore);
+    private static void InitAdjacentFileMasks()
+    {
+        for (int f = 0; f < 8; f++)
+        {
+            if (f > 0) AdjacentFiles[f] |= FileMask[f - 1];
+            if (f < 7) AdjacentFiles[f] |= FileMask[f + 1];
+        }
+    }
 
-        // Taper between middlegame and endgame scores based on remaining material.
+    private static void InitPassedPawnMasks()
+    {
+        //  For a White pawn on square s:
+        //    "passed" means no Black pawn exists on [same + adjacent files]
+        //    on any rank closer to Black's side (lower rank index).
         //
-        //   finalScore = (mgScore * mgPhase + egScore * egPhase) / 24
+        //  Visual — White pawn on d4 (square 35, rank=4, file=3):
         //
-        //   Early game (phase=24): result ≈ mgScore
-        //   Late game  (phase= 0): result ≈ egScore
-        int middlegamePhase = Math.Min(phase, TotalPhase);
-        int endgamePhase = TotalPhase - middlegamePhase;
+        //      . . X X X . . .    rank 8  (index 0)
+        //      . . X X X . . .    rank 7  (index 1)
+        //      . . X X X . . .    rank 6  (index 2)
+        //      . . X X X . . .    rank 5  (index 3)
+        //      . . . P . . . .    rank 4  (index 4)  ← pawn here
+        //      . . . . . . . .    rank 3  (index 5)
+        //      . . . . . . . .    rank 2  (index 6)
+        //      . . . . . . . .    rank 1  (index 7)
+        //
+        //  X = squares in WhitePassedMask[35]
 
-        return (middlegameScore * middlegamePhase + endgameScore * endgamePhase) / TotalPhase;
-    }
-
-    /// <summary>
-    /// Returns the position score from the side-to-move's perspective.
-    ///   Positive = side to move is better.
-    ///   Negative = side to move is worse.
-    ///
-    /// This is the negamax convention required by alpha-beta search.
-    /// Use this inside AlphaBeta() and Quiescence().
-    /// </summary>
-    public static int EvaluateForSearch()
-    {
-        int whiteScore = Evaluate();
-        return side == White ? whiteScore : -whiteScore;
-    }
-
-    /// <summary>
-    /// Converts a search (negamax) score back to White perspective for display.
-    ///
-    /// Call this when printing UCI "info score" lines.
-    ///
-    /// Example:
-    ///   rootSide = Black, score = +300 (Black is better by 3 pawns)
-    ///   → ToWhitePerspective(300, Black) = -300 (White is worse by 3 pawns)
-    /// </summary>
-    public static int ToWhitePerspective(int searchScore, int rootSide)
-    {
-        return rootSide == White ? searchScore : -searchScore;
-    }
-
-    // =========================================================================
-    // Material + Piece-Square Table Scoring
-    // =========================================================================
-
-    /// <summary>
-    /// Iterates over all White and Black pieces.
-    /// For each piece on each square, adds its combined material + PST score.
-    /// Also accumulates the game phase counter.
-    /// </summary>
-    private static void ScoreMaterialAndPieceSquares(ref int middlegameScore, ref int endgameScore, ref int phase)
-    {
-        // White pieces contribute positively (+1), Black pieces negatively (-1)
-        ScorePieceRange(P, K, +1, ref middlegameScore, ref endgameScore, ref phase);
-        ScorePieceRange(p, k, -1, ref middlegameScore, ref endgameScore, ref phase);
-    }
-
-    /// <summary>
-    /// Loops over a range of piece indices [firstPiece..lastPiece].
-    /// For each piece on the board, adds its precomputed MG+EG score
-    /// multiplied by sign (+1 for White, -1 for Black).
-    /// </summary>
-    private static void ScorePieceRange(int firstPiece, int lastPiece, int sign,
-        ref int middlegameScore, ref int endgameScore, ref int phase)
-    {
-        for (int piece = firstPiece; piece <= lastPiece; piece++)
+        for (int sq = 0; sq < 64; sq++)
         {
-            ulong pieces = bitboards[piece];
+            int file = sq % 8;
+            int rank = sq / 8;
 
-            while (pieces != 0)
-            {
-                int square = GetLs1bIndex(pieces);
+            ulong relevantFiles = FileMask[file] | AdjacentFiles[file];
 
-                middlegameScore += sign * MiddlegameScores[piece, square];
-                endgameScore += sign * EndgameScores[piece, square];
-                phase += PhaseWeights[piece];
-
-                PopBit(ref pieces, square);
-            }
-        }
-    }
-
-    // =========================================================================
-    // Bishop Pair
-    // =========================================================================
-
-    /// <summary>
-    /// Adds a bonus if a side has two bishops.
-    /// The bonus is larger in the endgame where open positions favor bishops.
-    /// </summary>
-    private static void ScoreBishopPairs(ref int middlegameScore, ref int endgameScore)
-    {
-        if (CountBits(bitboards[B]) >= 2)
-        {
-            middlegameScore += BishopPairBonusMg;
-            endgameScore += BishopPairBonusEg;
-        }
-
-        if (CountBits(bitboards[b]) >= 2)
-        {
-            middlegameScore -= BishopPairBonusMg;
-            endgameScore -= BishopPairBonusEg;
-        }
-    }
-
-    // =========================================================================
-    // Passed Pawns
-    // =========================================================================
-
-    /// <summary>
-    /// Adds a bonus for each passed pawn (no enemy pawn can stop it from promoting).
-    /// Bonus increases the closer the pawn is to promotion.
-    ///
-    /// White passed pawn: checks WhitePassedPawnMasks[sq] against black pawns.
-    /// Black passed pawn: checks BlackPassedPawnMasks[sq] against white pawns.
-    ///                    Uses mirrored rank (7 - rank) so rank 1 = best for Black.
-    /// </summary>
-    private static void ScorePassedPawns(ref int middlegameScore, ref int endgameScore)
-    {
-        ulong whitePawns = bitboards[P];
-        ulong blackPawns = bitboards[p];
-
-        ulong whitePawnLoop = whitePawns;
-        while (whitePawnLoop != 0)
-        {
-            int square = GetLs1bIndex(whitePawnLoop);
-
-            if ((WhitePassedPawnMasks[square] & blackPawns) == 0)
-            {
-                // Engine rank 0 = rank 8, rank 1 = rank 7 (closest to promotion)
-                int rank = square / 8;
-                middlegameScore += PassedPawnBonusMg[rank];
-                endgameScore += PassedPawnBonusEg[rank];
-            }
-
-            PopBit(ref whitePawnLoop, square);
-        }
-
-        ulong blackPawnLoop = blackPawns;
-        while (blackPawnLoop != 0)
-        {
-            int square = GetLs1bIndex(blackPawnLoop);
-
-            if ((BlackPassedPawnMasks[square] & whitePawns) == 0)
-            {
-                // Mirror the rank so Black's rank 1 (engine rank 7) maps to index 0
-                int rank = 7 - (square / 8);
-                middlegameScore -= PassedPawnBonusMg[rank];
-                endgameScore -= PassedPawnBonusEg[rank];
-            }
-
-            PopBit(ref blackPawnLoop, square);
-        }
-    }
-
-    // =========================================================================
-    // Isolated Pawns
-    // =========================================================================
-
-    /// <summary>
-    /// Applies a penalty for each isolated pawn (no friendly pawn on either adjacent file).
-    /// Isolated pawns are permanent weaknesses that cannot be defended by other pawns.
-    /// </summary>
-    private static void ScoreIsolatedPawns(ref int middlegameScore, ref int endgameScore)
-    {
-        ulong whitePawns = bitboards[P];
-        ulong blackPawns = bitboards[p];
-
-        ulong whitePawnLoop = whitePawns;
-        while (whitePawnLoop != 0)
-        {
-            int square = GetLs1bIndex(whitePawnLoop);
-
-            // No White pawn on either adjacent file → isolated
-            if ((AdjacentFileMasks[square % 8] & whitePawns) == 0)
-            {
-                middlegameScore += IsolatedPawnPenaltyMg; // negative constant
-                endgameScore += IsolatedPawnPenaltyEg;
-            }
-
-            PopBit(ref whitePawnLoop, square);
-        }
-
-        ulong blackPawnLoop = blackPawns;
-        while (blackPawnLoop != 0)
-        {
-            int square = GetLs1bIndex(blackPawnLoop);
-
-            if ((AdjacentFileMasks[square % 8] & blackPawns) == 0)
-            {
-                middlegameScore -= IsolatedPawnPenaltyMg; // subtract negative = add penalty for Black
-                endgameScore -= IsolatedPawnPenaltyEg;
-            }
-
-            PopBit(ref blackPawnLoop, square);
-        }
-    }
-
-    // =========================================================================
-    // Mobility
-    // =========================================================================
-
-    /// <summary>
-    /// Scores knight and bishop mobility.
-    ///
-    /// For each piece, counts the number of squares it can safely move to
-    /// (not occupied by a friendly piece), then compares against a baseline.
-    ///
-    ///   mobility = reachableSquares - baseline
-    ///   score   += mobility * weight
-    ///
-    /// A piece with many reachable squares gets a bonus.
-    /// A piece with fewer reachable squares than the baseline gets a penalty.
-    /// </summary>
-    private static void ScoreMobility(ref int middlegameScore, ref int endgameScore)
-    {
-        ulong whiteOccupancy = occupancies[White];
-        ulong blackOccupancy = occupancies[Black];
-        ulong allOccupancy = occupancies[Both];
-
-        // --- White knights ---
-        ulong whiteKnights = bitboards[N];
-        while (whiteKnights != 0)
-        {
-            int square = GetLs1bIndex(whiteKnights);
-            int mobility = CountBits(knightAttacks[square] & ~whiteOccupancy) - KnightMobilityBaseline;
-
-            middlegameScore += mobility * KnightMobilityMgWeight;
-            endgameScore += mobility * KnightMobilityEgWeight;
-
-            PopBit(ref whiteKnights, square);
-        }
-
-        // --- Black knights ---
-        ulong blackKnights = bitboards[n];
-        while (blackKnights != 0)
-        {
-            int square = GetLs1bIndex(blackKnights);
-            int mobility = CountBits(knightAttacks[square] & ~blackOccupancy) - KnightMobilityBaseline;
-
-            middlegameScore -= mobility * KnightMobilityMgWeight;
-            endgameScore -= mobility * KnightMobilityEgWeight;
-
-            PopBit(ref blackKnights, square);
-        }
-
-        // --- White bishops ---
-        ulong whiteBishops = bitboards[B];
-        while (whiteBishops != 0)
-        {
-            int square = GetLs1bIndex(whiteBishops);
-            int mobility = CountBits(GetBishopAttacks(square, allOccupancy) & ~whiteOccupancy) - BishopMobilityBaseline;
-
-            middlegameScore += mobility * BishopMobilityMgWeight;
-            endgameScore += mobility * BishopMobilityEgWeight;
-
-            PopBit(ref whiteBishops, square);
-        }
-
-        // --- Black bishops ---
-        ulong blackBishops = bitboards[b];
-        while (blackBishops != 0)
-        {
-            int square = GetLs1bIndex(blackBishops);
-            int mobility = CountBits(GetBishopAttacks(square, allOccupancy) & ~blackOccupancy) - BishopMobilityBaseline;
-
-            middlegameScore -= mobility * BishopMobilityMgWeight;
-            endgameScore -= mobility * BishopMobilityEgWeight;
-
-            PopBit(ref blackBishops, square);
-        }
-    }
-
-    // =========================================================================
-    // Rook File Bonuses
-    // =========================================================================
-
-    /// <summary>
-    /// Gives rooks a bonus for standing on open or semi-open files.
-    ///
-    ///   Open file:      no pawns at all on the rook's file
-    ///   Semi-open file: no FRIENDLY pawns (but enemy pawn may exist)
-    ///
-    /// If there is a friendly pawn on the file, no bonus is given.
-    /// </summary>
-    private static void ScoreRookFiles(ref int middlegameScore, ref int endgameScore)
-    {
-        ulong whitePawns = bitboards[P];
-        ulong blackPawns = bitboards[p];
-        ulong allPawns = whitePawns | blackPawns;
-
-        ulong whiteRooks = bitboards[R];
-        while (whiteRooks != 0)
-        {
-            int square = GetLs1bIndex(whiteRooks);
-            AddRookFileBonus(square % 8, whitePawns, allPawns, +1, ref middlegameScore, ref endgameScore);
-            PopBit(ref whiteRooks, square);
-        }
-
-        ulong blackRooks = bitboards[r];
-        while (blackRooks != 0)
-        {
-            int square = GetLs1bIndex(blackRooks);
-            AddRookFileBonus(square % 8, blackPawns, allPawns, -1, ref middlegameScore, ref endgameScore);
-            PopBit(ref blackRooks, square);
-        }
-    }
-
-    /// <summary>
-    /// Applies the open or semi-open file bonus for a single rook on the given file.
-    /// sign = +1 for White, -1 for Black.
-    /// </summary>
-    private static void AddRookFileBonus(int file, ulong friendlyPawns, ulong allPawns,
-        int sign, ref int middlegameScore, ref int endgameScore)
-    {
-        ulong fileMask = FileMasks[file];
-
-        // Friendly pawn on this file → rook is blocked, no bonus
-        if ((friendlyPawns & fileMask) != 0)
-            return;
-
-        if ((allPawns & fileMask) == 0)
-        {
-            // No pawns at all → fully open file
-            middlegameScore += sign * RookOpenFileBonusMg;
-            endgameScore += sign * RookOpenFileBonusEg;
-        }
-        else
-        {
-            // Enemy pawn present but no friendly pawn → semi-open file
-            middlegameScore += sign * RookSemiOpenFileBonusMg;
-            endgameScore += sign * RookSemiOpenFileBonusEg;
-        }
-    }
-
-    // =========================================================================
-    // King Exposure (Middlegame Only)
-    // =========================================================================
-
-    /// <summary>
-    /// Penalizes kings that lack pawn shelter in the middlegame.
-    ///
-    /// Checks 3 files: the king's own file + the two adjacent files.
-    /// For each file without a friendly pawn, applies a penalty based on
-    /// whether the file is fully open (no pawns) or semi-open (enemy pawn only).
-    ///
-    /// A bad-shelter king for White subtracts from the score (hurts White).
-    /// A bad-shelter king for Black adds to the score (hurts Black = helps White).
-    /// </summary>
-    private static void ScoreKingExposure(ref int middlegameScore)
-    {
-        ulong whitePawns = bitboards[P];
-        ulong blackPawns = bitboards[p];
-        ulong allPawns = whitePawns | blackPawns;
-
-        int whiteKingFile = GetLs1bIndex(bitboards[K]) % 8;
-        int blackKingFile = GetLs1bIndex(bitboards[k]) % 8;
-
-        // --- White king shelter ---
-        // sign = -1: penalty hurts White (subtracts from score)
-        AddKingFilePenalty(whiteKingFile, whitePawns, allPawns, -1,
-            KingOwnOpenFilePenaltyMg, KingOwnSemiOpenFilePenaltyMg, ref middlegameScore);
-
-        if (whiteKingFile > 0)
-            AddKingFilePenalty(whiteKingFile - 1, whitePawns, allPawns, -1,
-                KingAdjacentOpenFilePenaltyMg, KingAdjacentSemiOpenFilePenaltyMg, ref middlegameScore);
-
-        if (whiteKingFile < 7)
-            AddKingFilePenalty(whiteKingFile + 1, whitePawns, allPawns, -1,
-                KingAdjacentOpenFilePenaltyMg, KingAdjacentSemiOpenFilePenaltyMg, ref middlegameScore);
-
-        // --- Black king shelter ---
-        // sign = +1: Black's penalty helps White (adds to score)
-        AddKingFilePenalty(blackKingFile, blackPawns, allPawns, +1,
-            KingOwnOpenFilePenaltyMg, KingOwnSemiOpenFilePenaltyMg, ref middlegameScore);
-
-        if (blackKingFile > 0)
-            AddKingFilePenalty(blackKingFile - 1, blackPawns, allPawns, +1,
-                KingAdjacentOpenFilePenaltyMg, KingAdjacentSemiOpenFilePenaltyMg, ref middlegameScore);
-
-        if (blackKingFile < 7)
-            AddKingFilePenalty(blackKingFile + 1, blackPawns, allPawns, +1,
-                KingAdjacentOpenFilePenaltyMg, KingAdjacentSemiOpenFilePenaltyMg, ref middlegameScore);
-    }
-
-    /// <summary>
-    /// Applies an open-file or semi-open-file penalty to the king on the given file.
-    /// Only applies if there is no friendly pawn on that file.
-    /// sign = -1 for White king (penalty hurts White), +1 for Black king (helps White).
-    /// </summary>
-    private static void AddKingFilePenalty(int file, ulong friendlyPawns, ulong allPawns,
-        int sign, int openPenalty, int semiOpenPenalty, ref int middlegameScore)
-    {
-        ulong fileMask = FileMasks[file];
-
-        // Friendly pawn present → king has shelter on this file, no penalty
-        if ((friendlyPawns & fileMask) != 0)
-            return;
-
-        // Open = no pawns at all; semi-open = enemy pawn only
-        middlegameScore += sign * (((allPawns & fileMask) == 0) ? openPenalty : semiOpenPenalty);
-    }
-
-    // =========================================================================
-    // Knight Outposts (Middlegame Only)
-    // =========================================================================
-
-    /// <summary>
-    /// Gives a bonus for knights placed on outpost squares.
-    ///
-    /// An outpost knight must be:
-    ///   1. On engine ranks 2–4 for White (chess ranks 4–6), ranks 3–5 for Black
-    ///   2. Supported by a friendly pawn (the pawn attacks that square)
-    ///   3. Safe from being chased by an enemy pawn
-    ///      (no enemy pawn exists that could advance to challenge the outpost)
-    ///
-    /// Supporting pawn check:
-    ///   pawnAttacks[Black, sq] gives squares a Black pawn on sq would attack.
-    ///   Those are also the squares where a White pawn would need to be to
-    ///   attack sq from below — i.e., to support a White piece on sq.
-    ///
-    ///   So: (pawnAttacks[Black, sq] & whitePawns) != 0
-    ///   means a White pawn is diagonally behind the knight → it supports it.
-    ///
-    /// Chasing check:
-    ///   WhiteOutpostMasks[sq] = squares on adjacent files ahead of sq.
-    ///   If a Black pawn is on any of those squares, it could advance and
-    ///   attack the outpost. If none exist → outpost is safe.
-    /// </summary>
-    private static void ScoreKnightOutposts(ref int middlegameScore)
-    {
-        ulong whitePawns = bitboards[P];
-        ulong blackPawns = bitboards[p];
-
-        // --- White knights ---
-        ulong whiteKnights = bitboards[N];
-        while (whiteKnights != 0)
-        {
-            int square = GetLs1bIndex(whiteKnights);
-            int rank = square / 8;
-
-            // Engine ranks 2, 3, 4 = chess ranks 6, 5, 4
-            bool onOutpostRank = rank >= 2 && rank <= 4;
-            bool supportedByPawn = (pawnAttacks[Black, square] & whitePawns) != 0;
-            bool cannotBeChasedByPawn = (WhiteOutpostMasks[square] & blackPawns) == 0;
-
-            if (onOutpostRank && supportedByPawn && cannotBeChasedByPawn)
-                middlegameScore += KnightOutpostBonusMg;
-
-            PopBit(ref whiteKnights, square);
-        }
-
-        // --- Black knights ---
-        ulong blackKnights = bitboards[n];
-        while (blackKnights != 0)
-        {
-            int square = GetLs1bIndex(blackKnights);
-            int rank = square / 8;
-
-            // Engine ranks 3, 4, 5 = chess ranks 5, 4, 3
-            bool onOutpostRank = rank >= 3 && rank <= 5;
-            bool supportedByPawn = (pawnAttacks[White, square] & blackPawns) != 0;
-            bool cannotBeChasedByPawn = (BlackOutpostMasks[square] & whitePawns) == 0;
-
-            if (onOutpostRank && supportedByPawn && cannotBeChasedByPawn)
-                middlegameScore -= KnightOutpostBonusMg;
-
-            PopBit(ref blackKnights, square);
-        }
-    }
-
-    // =========================================================================
-    // Initialization Methods
-    // =========================================================================
-
-    /// <summary>
-    /// Fills FileMasks[f] with a bitboard covering all 8 squares on file f.
-    /// File 0 = a-file, file 7 = h-file.
-    /// </summary>
-    private static void InitializeFileMasks()
-    {
-        for (int file = 0; file < 8; file++)
-            for (int rank = 0; rank < 8; rank++)
-                FileMasks[file] |= 1UL << (rank * 8 + file);
-    }
-
-    /// <summary>
-    /// Fills AdjacentFileMasks[f] with a bitboard covering the files
-    /// immediately left and right of file f.
-    ///
-    ///   f=0 (a): only b-file
-    ///   f=3 (d): c-file + e-file
-    ///   f=7 (h): only g-file
-    /// </summary>
-    private static void InitializeAdjacentFileMasks()
-    {
-        for (int file = 0; file < 8; file++)
-        {
-            if (file > 0) AdjacentFileMasks[file] |= FileMasks[file - 1];
-            if (file < 7) AdjacentFileMasks[file] |= FileMasks[file + 1];
-        }
-    }
-
-    /// <summary>
-    /// Builds passed pawn masks for every square.
-    ///
-    ///   WhitePassedPawnMasks[sq] = (same file | left file | right file) ∩ ranks above sq
-    ///   BlackPassedPawnMasks[sq] = (same file | left file | right file) ∩ ranks below sq
-    ///
-    ///   "Ranks above" = smaller rank indices (closer to rank 8 in engine layout).
-    ///   "Ranks below" = larger rank indices (closer to rank 1).
-    /// </summary>
-    private static void InitializePassedPawnMasks()
-    {
-        for (int square = 0; square < 64; square++)
-        {
-            int file = square % 8;
-            int rank = square / 8;
-
-            ulong relevantFiles = FileMasks[file] | AdjacentFileMasks[file];
-
-            // Build "ranks above" mask: all squares with rank index < current rank
-            ulong whiteAheadMask = 0;
+            ulong aheadWhite = 0UL;
             for (int r = 0; r < rank; r++)
                 for (int f = 0; f < 8; f++)
-                    whiteAheadMask |= 1UL << (r * 8 + f);
+                    aheadWhite |= 1UL << (r * 8 + f);
 
-            // Build "ranks below" mask: all squares with rank index > current rank
-            ulong blackAheadMask = 0;
+            ulong aheadBlack = 0UL;
             for (int r = rank + 1; r < 8; r++)
                 for (int f = 0; f < 8; f++)
-                    blackAheadMask |= 1UL << (r * 8 + f);
+                    aheadBlack |= 1UL << (r * 8 + f);
 
-            WhitePassedPawnMasks[square] = relevantFiles & whiteAheadMask;
-            BlackPassedPawnMasks[square] = relevantFiles & blackAheadMask;
+            WhitePassedMask[sq] = relevantFiles & aheadWhite;
+            BlackPassedMask[sq] = relevantFiles & aheadBlack;
         }
     }
 
-    /// <summary>
-    /// Builds outpost masks for every square.
-    ///
-    ///   WhiteOutpostMasks[sq] = ADJACENT files only ∩ ranks above sq
-    ///   BlackOutpostMasks[sq] = ADJACENT files only ∩ ranks below sq
-    ///
-    ///   Excludes the same file because pawns attack diagonally, not straight ahead.
-    ///   An enemy pawn on the same file cannot capture a piece on sq.
-    /// </summary>
-    private static void InitializeOutpostMasks()
+    private static void InitOutpostMasks()
     {
-        for (int square = 0; square < 64; square++)
+        //  Similar to passed-pawn masks but ONLY adjacent files (not same file),
+        //  because pawns attack diagonally, not straight ahead.
+        //
+        //  Visual — White knight on d5 (square 27, rank=3, file=3):
+        //
+        //      . . X . X . . .    rank 8  (index 0)
+        //      . . X . X . . .    rank 7  (index 1)
+        //      . . X . X . . .    rank 6  (index 2)
+        //      . . . N . . . .    rank 5  (index 3)  ← knight here
+        //      . . . . . . . .
+        //      . . . . . . . .
+        //      . . . . . . . .
+        //      . . . . . . . .
+        //
+        //  X = squares in WhiteOutpostMask[27]
+        //  If a Black pawn is on any X, it can still advance and challenge d5.
+
+        for (int sq = 0; sq < 64; sq++)
         {
-            int file = square % 8;
-            int rank = square / 8;
+            int file = sq % 8;
+            int rank = sq / 8;
 
-            ulong whiteMask = 0;
-            ulong blackMask = 0;
+            ulong wMask = 0UL, bMask = 0UL;
 
-            // Left adjacent file
             if (file > 0)
             {
                 for (int r = 0; r < rank; r++)
-                    whiteMask |= 1UL << (r * 8 + file - 1);
+                    wMask |= 1UL << (r * 8 + file - 1);
 
                 for (int r = rank + 1; r < 8; r++)
-                    blackMask |= 1UL << (r * 8 + file - 1);
+                    bMask |= 1UL << (r * 8 + file - 1);
             }
 
-            // Right adjacent file
             if (file < 7)
             {
                 for (int r = 0; r < rank; r++)
-                    whiteMask |= 1UL << (r * 8 + file + 1);
+                    wMask |= 1UL << (r * 8 + file + 1);
 
                 for (int r = rank + 1; r < 8; r++)
-                    blackMask |= 1UL << (r * 8 + file + 1);
+                    bMask |= 1UL << (r * 8 + file + 1);
             }
 
-            WhiteOutpostMasks[square] = whiteMask;
-            BlackOutpostMasks[square] = blackMask;
+            WhiteOutpostMask[sq] = wMask;
+            BlackOutpostMask[sq] = bMask;
         }
     }
 
-    /// <summary>
-    /// Combines material values and PST values into single lookup arrays.
-    ///
-    ///   MiddlegameScores[piece, square] = MgMaterial[type] + MgPst[type][square]
-    ///   EndgameScores[piece, square]    = EgMaterial[type] + EgPst[type][square]
-    ///
-    /// White pieces (0–5) read the PST directly.
-    /// Black pieces (6–11) read the PST mirrored vertically (square ^ 56).
-    ///
-    ///   square ^ 56 flips rank:  a8(0) ↔ a1(56),  h8(7) ↔ h1(63)
-    ///   This means both sides see their "good squares" at their own end.
-    /// </summary>
-    private static void InitializePieceSquareTables()
+    private static void InitMaterialPstTables()
     {
-        for (int pieceType = 0; pieceType < PieceTypeCount; pieceType++)
+        for (int piece = 0; piece < 6; piece++)
         {
-            for (int square = 0; square < SquareCount; square++)
+            for (int sq = 0; sq < 64; sq++)
             {
-                int mirroredSquare = square ^ 56;
-
-                // White pieces read PST normally
-                MiddlegameScores[pieceType, square] =
-                    MiddlegameMaterial[pieceType] + MiddlegamePst[pieceType][square];
-                EndgameScores[pieceType, square] =
-                    EndgameMaterial[pieceType] + EndgamePst[pieceType][square];
-
-                // Black pieces read the PST mirrored (so their rank 1 maps to PST rank 1)
-                MiddlegameScores[pieceType + 6, square] =
-                    MiddlegameMaterial[pieceType] + MiddlegamePst[pieceType][mirroredSquare];
-                EndgameScores[pieceType + 6, square] =
-                    EndgameMaterial[pieceType] + EndgamePst[pieceType][mirroredSquare];
+                MgTable[piece, sq] = MgMaterial[piece] + MgPst[piece][sq];
+                EgTable[piece, sq] = EgMaterial[piece] + EgPst[piece][sq];
+                MgTable[piece + 6, sq] = MgMaterial[piece] + MgPst[piece][sq ^ 56];
+                EgTable[piece + 6, sq] = EgMaterial[piece] + EgPst[piece][sq ^ 56];
             }
+        }
+    }
+
+    // ================================================================
+    //  Main Entry Point
+    // ================================================================
+
+    public static int Evaluate()
+    {
+        int mg = 0, eg = 0, phase = 0;
+
+        // ---- Material + PST ----
+        ScorePieces(P, K, +1, ref mg, ref eg, ref phase);
+        ScorePieces(p, k, -1, ref mg, ref eg, ref phase);
+
+        // ---- Positional features ----
+        ScoreBishopPair(ref mg, ref eg);
+        ScorePassedPawns(ref mg, ref eg);
+        ScoreIsolatedPawns(ref mg, ref eg);
+        ScoreMobility(ref mg, ref eg);
+        ScoreRookFiles(ref mg, ref eg);
+        ScoreKingExposure(ref mg);
+        ScoreKnightOutposts(ref mg);
+
+        // ---- Taper and return ----
+        int mgPhase = Math.Min(phase, TotalPhase);
+        int egPhase = TotalPhase - mgPhase;
+        int score = (mg * mgPhase + eg * egPhase) / TotalPhase;
+
+        return side == White ? score : -score;
+    }
+
+    // ================================================================
+    //  Evaluation Helpers
+    // ================================================================
+
+    private static void ScorePieces(int first, int last, int sign,
+        ref int mg, ref int eg, ref int phase)
+    {
+        for (int piece = first; piece <= last; piece++)
+        {
+            ulong bb = bitboards[piece];
+            while (bb != 0)
+            {
+                int sq = BitboardOperations.GetLs1bIndex(bb);
+                mg += sign * MgTable[piece, sq];
+                eg += sign * EgTable[piece, sq];
+                phase += PhaseWeight[piece];
+                BitboardOperations.PopBit(ref bb, sq);
+            }
+        }
+    }
+
+    private static void ScoreBishopPair(ref int mg, ref int eg)
+    {
+        if (BitboardOperations.CountBits(bitboards[B]) >= 2) { mg += BishopPairMg; eg += BishopPairEg; }
+        if (BitboardOperations.CountBits(bitboards[b]) >= 2) { mg -= BishopPairMg; eg -= BishopPairEg; }
+    }
+
+    private static void ScorePassedPawns(ref int mg, ref int eg)
+    {
+        ulong wPawns = bitboards[P], bPawns = bitboards[p];
+
+        for (ulong bb = wPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((WhitePassedMask[sq] & bPawns) == 0)
+            {
+                int rank = sq / 8;
+                mg += PassedMg[rank];
+                eg += PassedEg[rank];
+            }
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((BlackPassedMask[sq] & wPawns) == 0)
+            {
+                int rank = 7 - sq / 8;
+                mg -= PassedMg[rank];
+                eg -= PassedEg[rank];
+            }
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+    }
+
+    private static void ScoreIsolatedPawns(ref int mg, ref int eg)
+    {
+        ulong wPawns = bitboards[P], bPawns = bitboards[p];
+
+        for (ulong bb = wPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((AdjacentFiles[sq % 8] & wPawns) == 0) { mg += IsolatedMg; eg += IsolatedEg; }
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((AdjacentFiles[sq % 8] & bPawns) == 0) { mg -= IsolatedMg; eg -= IsolatedEg; }
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+    }
+
+    private static void ScoreMobility(ref int mg, ref int eg)
+    {
+        ulong wOcc = occupancies[White];
+        ulong bOcc = occupancies[Black];
+        ulong all = occupancies[Both];
+
+        // Knights
+        ScorePieceMobility(bitboards[N], sq => knightAttacks[sq] & ~wOcc,
+            KnightMobBase, KnightMobMg, KnightMobEg, +1, ref mg, ref eg);
+        ScorePieceMobility(bitboards[n], sq => knightAttacks[sq] & ~bOcc,
+            KnightMobBase, KnightMobMg, KnightMobEg, -1, ref mg, ref eg);
+
+        // Bishops
+        ScorePieceMobility(bitboards[B], sq => GetBishopAttacks(sq, all) & ~wOcc,
+            BishopMobBase, BishopMobMg, BishopMobEg, +1, ref mg, ref eg);
+        ScorePieceMobility(bitboards[b], sq => GetBishopAttacks(sq, all) & ~bOcc,
+            BishopMobBase, BishopMobMg, BishopMobEg, -1, ref mg, ref eg);
+    }
+
+    private static void ScorePieceMobility(ulong bb, Func<int, ulong> getAttacks,
+        int baseline, int mgWeight, int egWeight, int sign, ref int mg, ref int eg)
+    {
+        while (bb != 0)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int mobility = BitboardOperations.CountBits(getAttacks(sq)) - baseline;
+            mg += sign * mobility * mgWeight;
+            eg += sign * mobility * egWeight;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+    }
+
+    private static void ScoreRookFiles(ref int mg, ref int eg)
+    {
+        ulong wPawns = bitboards[P], bPawns = bitboards[p];
+        ulong allPawns = wPawns | bPawns;
+
+        for (ulong bb = bitboards[R]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            ScoreFileBonus(sq % 8, wPawns, allPawns, +1, ref mg, ref eg);
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bitboards[r]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            ScoreFileBonus(sq % 8, bPawns, allPawns, -1, ref mg, ref eg);
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+    }
+
+    private static void ScoreFileBonus(int file, ulong friendlyPawns, ulong allPawns,
+        int sign, ref int mg, ref int eg)
+    {
+        ulong mask = FileMask[file];
+
+        if ((friendlyPawns & mask) != 0) return;
+
+        if ((allPawns & mask) == 0) { mg += sign * RookOpenMg; eg += sign * RookOpenEg; }
+        else { mg += sign * RookSemiOpenMg; eg += sign * RookSemiOpenEg; }
+    }
+
+    private static void ScoreKingExposure(ref int mg)
+    {
+        ulong wPawns = bitboards[P], bPawns = bitboards[p];
+        ulong allPawns = wPawns | bPawns;
+
+        int wkFile = BitboardOperations.GetLs1bIndex(bitboards[K]) % 8;
+        int bkFile = BitboardOperations.GetLs1bIndex(bitboards[k]) % 8;
+
+        // White king
+        ScoreKingFile(wkFile, wPawns, allPawns, -1, KingOwnOpenMg, KingOwnSemiOpenMg, ref mg);
+        if (wkFile > 0) ScoreKingFile(wkFile - 1, wPawns, allPawns, -1, KingAdjacentOpenMg, KingAdjacentSemiOpenMg, ref mg);
+        if (wkFile < 7) ScoreKingFile(wkFile + 1, wPawns, allPawns, -1, KingAdjacentOpenMg, KingAdjacentSemiOpenMg, ref mg);
+
+        // Black king
+        ScoreKingFile(bkFile, bPawns, allPawns, +1, KingOwnOpenMg, KingOwnSemiOpenMg, ref mg);
+        if (bkFile > 0) ScoreKingFile(bkFile - 1, bPawns, allPawns, +1, KingAdjacentOpenMg, KingAdjacentSemiOpenMg, ref mg);
+        if (bkFile < 7) ScoreKingFile(bkFile + 1, bPawns, allPawns, +1, KingAdjacentOpenMg, KingAdjacentSemiOpenMg, ref mg);
+    }
+
+    private static void ScoreKingFile(int file, ulong friendlyPawns, ulong allPawns,
+        int sign, int openPenalty, int semiOpenPenalty, ref int mg)
+    {
+        ulong mask = FileMask[file];
+        if ((friendlyPawns & mask) != 0) return;
+        mg += sign * (((allPawns & mask) == 0) ? openPenalty : semiOpenPenalty);
+    }
+
+    private static void ScoreKnightOutposts(ref int mg)
+    {
+        ulong wPawns = bitboards[P], bPawns = bitboards[p];
+
+        //  White knight outposts — engine ranks 2..4 (chess ranks 6..4)
+        //
+        //  pawnAttacks[Black, sq] gives the squares from which a BLACK pawn
+        //  would attack sq. Those same squares are where a WHITE pawn must be
+        //  to support sq. So:
+        //
+        //    supportedByWhitePawn = (pawnAttacks[Black, sq] & whitePawns) != 0
+        for (ulong bb = bitboards[N]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int rank = sq / 8;
+
+            if (rank >= 2 && rank <= 4
+                && (pawnAttacks[Black, sq] & wPawns) != 0
+                && (WhiteOutpostMask[sq] & bPawns) == 0)
+            {
+                mg += KnightOutpostMg;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        //  Black knight outposts — engine ranks 3..5 (chess ranks 5..3)
+        for (ulong bb = bitboards[n]; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int rank = sq / 8;
+
+            if (rank >= 3 && rank <= 5
+                && (pawnAttacks[White, sq] & bPawns) != 0
+                && (BlackOutpostMask[sq] & wPawns) == 0)
+            {
+                mg -= KnightOutpostMg;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
         }
     }
 }

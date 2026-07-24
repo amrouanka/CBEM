@@ -161,10 +161,10 @@ public static class Board
             occ1 = occupancies[1],
             occ2 = occupancies[2],
 
-            side = side,
-            enPassant = enPassant,
-            castle = castle,
-            halfmoveClock = halfmoveClock,
+            side = Board.side,
+            enPassant = Board.enPassant,
+            castle = Board.castle,
+            halfmoveClock = Board.halfmoveClock,
 
             hashKey = Zobrist.hashKey
         };

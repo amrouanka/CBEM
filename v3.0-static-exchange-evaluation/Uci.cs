@@ -1,368 +1,278 @@
-// =============================================================================
-// Uci.cs
-//
-// Implements the Universal Chess Interface (UCI) protocol.
-//
-// UCI is a text-based protocol between the GUI and the engine:
-//   • GUI sends commands on stdin
-//   • Engine responds on stdout
-//
-// Key commands handled:
-//   uci          → identify engine, list options
-//   isready      → confirm engine is ready
-//   ucinewgame   → reset for a new game
-//   position     → set up the board (FEN + move list)
-//   go           → start searching
-//   quit         → exit
-//
-// Reference: http://wbec-ridderkerk.nl/html/UCIProtocol.html
-// =============================================================================
-
 using static Board;
 using static MoveEncoding;
 using static MoveGenerator;
 
 public static class Uci
 {
-    // =========================================================================
-    // Engine Identity
-    // =========================================================================
-
-    private const string EngineName = "Amrou";
-    private const string EngineAuthor = "Amrou";
-
-    // =========================================================================
-    // UCI Loop
-    //
-    //   Reads lines from stdin and dispatches to handlers.
-    //   Runs until "quit" is received or TimeManagement.quit is set.
-    // =========================================================================
-
-    /// <summary>
-    /// Main UCI communication loop.
-    /// Reads commands from stdin, writes responses to stdout.
-    /// </summary>
-    public static void UciLoop()
-    {
-        // Announce engine identity and capabilities
-        SendIdentity();
-
-        while (true)
-        {
-            if (TimeManagement.quit) break;
-
-            string? input = Console.ReadLine();
-            if (string.IsNullOrWhiteSpace(input)) continue;
-
-            input = input.Trim();
-
-            // Dispatch command
-            if (input == "uci") SendIdentity();
-            else if (input == "isready") Console.WriteLine("readyok");
-            else if (input == "ucinewgame") HandleNewGame();
-            else if (input.StartsWith("position")) ParsePosition(input);
-            else if (input.StartsWith("go")) ParseGo(input);
-            else if (input == "quit") break;
-            // Unknown commands are silently ignored (UCI spec allows this)
-        }
-    }
-
-    // =========================================================================
-    // Command Handlers
-    // =========================================================================
-
-    /// <summary>
-    /// Sends engine identity and "uciok" to confirm UCI mode.
-    /// Called on startup and when "uci" is received.
-    /// </summary>
-    private static void SendIdentity()
-    {
-        Console.WriteLine($"id name {EngineName}");
-        Console.WriteLine($"id author {EngineAuthor}");
-        Console.WriteLine("uciok");
-    }
-
-    /// <summary>
-    /// Handles "ucinewgame": resets to start position and clears the
-    /// transposition table so the new game starts with a clean slate.
-    /// </summary>
-    private static void HandleNewGame()
-    {
-        ParsePosition("position startpos");
-        TranspositionTable.Clear();
-    }
-
-    // =========================================================================
-    // ParsePosition
-    //
-    //   Handles: "position startpos [moves e2e4 e7e5 ...]"
-    //            "position fen <fen> [moves e2e4 ...]"
-    //
-    //   Steps:
-    //     1. Parse the FEN (start position or custom)
-    //     2. Reset repetition history
-    //     3. Apply each move in the move list
-    //        (recording the hash key before each move for repetition detection)
-    //     4. Record the final position's hash key
-    // =========================================================================
-
-    /// <summary>
-    /// Parses a "position" UCI command and sets up the board accordingly.
-    /// </summary>
-    public static void ParsePosition(string command)
-    {
-        // Split into tokens: ["position", "startpos", "moves", "e2e4", ...]
-        string[] parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length == 0 || parts[0] != "position")
-            return;
-
-        int index = 1; // current token index
-
-        // ── Step 1: Parse FEN ─────────────────────────────────────────────
-
-        if (index < parts.Length && parts[index] == "startpos")
-        {
-            ParseFEN(Program.StartPosition);
-            index++;
-        }
-        else if (index < parts.Length && parts[index] == "fen")
-        {
-            index++;
-
-            // Collect FEN tokens until "moves" or end of line
-            // A FEN string has 6 space-separated fields:
-            //   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-            var fenTokens = new List<string>();
-            while (index < parts.Length && parts[index] != "moves")
-            {
-                fenTokens.Add(parts[index]);
-                index++;
-            }
-
-            string fen = fenTokens.Count > 0
-                ? string.Join(" ", fenTokens)
-                : Program.StartPosition; // fallback if FEN was missing
-
-            ParseFEN(fen);
-        }
-        else
-        {
-            // Unknown format: default to start position
-            ParseFEN(Program.StartPosition);
-        }
-
-        // ── Step 2: Reset repetition history ──────────────────────────────
-        //
-        //   We clear the table and record the starting position.
-        //   Every move we make will also be recorded.
-        Search.RepetitionIndex = 0;
-
-        // ── Step 3: Apply moves ────────────────────────────────────────────
-        //
-        //   "moves e2e4 e7e5 g1f3 ..."
-        //
-        //   Before each move, record the current hash key so we can detect
-        //   repetitions. This matches how we handle it during search.
-        if (index < parts.Length && parts[index] == "moves")
-        {
-            index++;
-
-            while (index < parts.Length)
-            {
-                int move = ParseMove(parts[index]);
-                if (move == 0) break; // illegal or unknown move
-
-                // Record position BEFORE the move
-                Search.PushRepetition(Zobrist.hashKey);
-
-                MakeMove(move, (int)MoveFlag.allMoves);
-                index++;
-            }
-        }
-
-        // ── Step 4: Record the final position ─────────────────────────────
-        Search.PushRepetition(Zobrist.hashKey);
-    }
-
-    // =========================================================================
-    // ParseMove
-    //
-    //   Converts a move string like "e2e4" or "a7a8q" into an encoded move integer.
-    //
-    //   Steps:
-    //     1. Convert "e2" → source square index
-    //     2. Convert "e4" → target square index
-    //     3. Generate all legal moves
-    //     4. Find a generated move with matching source/target/promotion
-    //
-    //   Square index layout (same as Board):
-    //     a8=0, b8=1, ..., h8=7
-    //     a7=8, b7=9, ..., h7=15
-    //     ...
-    //     a1=56, b1=57, ..., h1=63
-    //
-    //   So: col = 'e' - 'a' = 4
-    //       row = (8 - '2') * 8 = 48   → e2 = 52
-    // =========================================================================
-
-    /// <summary>
-    /// Parses a UCI move string (e.g. "e2e4", "a7a8q") and returns the
-    /// encoded move integer, or 0 if no legal move matches.
-    /// </summary>
+    // Parse a move string (e.g., "e2e4", "a7a8q") and return the encoded move, or 0 if illegal/not found.
     public static int ParseMove(string moveString)
     {
-        // Minimum valid move: "e2e4" = 4 characters
         if (string.IsNullOrEmpty(moveString) || moveString.Length < 4)
             return 0;
 
-        // Convert notation to square indices
-        int sourceSquare = (moveString[0] - 'a') + (8 - (moveString[1] - '0')) * 8;
-        int targetSquare = (moveString[2] - 'a') + (8 - (moveString[3] - '0')) * 8;
-
         // Generate all legal moves for the current position
-        MoveList moveList = new MoveList();
+        var moveList = new MoveList();
         GenerateMoves(ref moveList);
 
+        // Parse source square
+        int sourceSquare = moveString[0] - 'a' + (8 - (moveString[1] - '0')) * 8;
+
+        // Parse target square
+        int targetSquare = moveString[2] - 'a' + (8 - (moveString[3] - '0')) * 8;
+
+        // Loop over the generated moves
         for (int i = 0; i < moveList.count; i++)
         {
             int move = moveList.moves[i];
 
-            // Check source and target square match
-            if (GetMoveSource(move) != sourceSquare) continue;
-            if (GetMoveTarget(move) != targetSquare) continue;
-
-            int promoted = GetMovePromoted(move);
-
-            if (promoted != 0)
+            // Match source and target squares
+            if (sourceSquare == GetMoveSource(move) && targetSquare == GetMoveTarget(move))
             {
-                // Move requires a promotion character (5th character)
-                if (moveString.Length < 5) continue;
+                int promotedPiece = GetMovePromoted(move);
 
-                // Match promotion piece character to the encoded promotion
-                char promoChar = char.ToLower(moveString[4]);
-
-                bool matches = promoChar switch
+                // If there is a promotion, verify it matches the move string
+                if (promotedPiece != 0)
                 {
-                    'q' => promoted == Q || promoted == q,
-                    'r' => promoted == R || promoted == r,
-                    'b' => promoted == B || promoted == b,
-                    'n' => promoted == N || promoted == n,
-                    _ => false,
-                };
+                    if (moveString.Length < 5)
+                        continue; // promotion character missing
 
-                if (!matches) continue;
+                    char promoChar = moveString[4];
+                    switch (promoChar)
+                    {
+                        case 'q' when promotedPiece == Q || promotedPiece == q:
+                            return move;
+                        case 'r' when promotedPiece == R || promotedPiece == r:
+                            return move;
+                        case 'b' when promotedPiece == B || promotedPiece == b:
+                            return move;
+                        case 'n' when promotedPiece == N || promotedPiece == n:
+                            return move;
+                        default:
+                            continue; // mismatched promotion character
+                    }
+                }
+
+                // Non-promotion move matches
+                return move;
             }
-
-            // Found a matching legal move
-            return move;
         }
 
-        return 0; // no legal move matched
+        // No matching legal move found
+        return 0;
     }
 
-    // =========================================================================
-    // ParseGo
-    //
-    //   Handles the "go" command which starts the search.
-    //
-    //   Supported parameters:
-    //     depth <n>       → search exactly n plies
-    //     infinite        → search until "stop" (not implemented: just depth 64)
-    //     movetime <ms>   → use exactly this many milliseconds
-    //     wtime <ms>      → white's remaining clock time
-    //     btime <ms>      → black's remaining clock time
-    //     winc <ms>       → white's increment per move
-    //     binc <ms>       → black's increment per move
-    //     movestogo <n>   → moves until next time control
-    //
-    //   Time management priority:
-    //     1. movetime   → fixed time per move
-    //     2. wtime/btime → dynamic time allocation
-    //     3. infinite   → no time limit
-    //     4. (default)  → depth 64, no time limit
-    // =========================================================================
+    // Parse UCI "position" command (e.g., "position startpos moves e2e4 e7e5")
+    public static void ParsePosition(string command)
+    {
+        if (string.IsNullOrEmpty(command))
+            return;
 
-    /// <summary>
-    /// Parses a "go" UCI command, configures time management, and starts the search.
-    /// </summary>
+        // Trim leading whitespace and skip "position"
+        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0 || parts[0] != "position")
+            return;
+
+        int idx = 1;
+
+        // Handle "startpos"
+        if (idx < parts.Length && parts[idx] == "startpos")
+        {
+            ParseFEN(Program.StartPosition);
+            idx++;
+        }
+        // Handle "fen ..."
+        else if (idx < parts.Length && parts[idx] == "fen")
+        {
+            idx++;
+            if (idx < parts.Length)
+            {
+                // Reconstruct FEN from remaining tokens until "moves" or end
+                var fenTokens = new List<string>();
+                while (idx < parts.Length && parts[idx] != "moves")
+                {
+                    fenTokens.Add(parts[idx]);
+                    idx++;
+                }
+                if (fenTokens.Count > 0)
+                {
+                    var fen = string.Join(" ", fenTokens);
+                    ParseFEN(fen);
+                }
+                else
+                {
+                    // FEN missing; fall back to start position
+                    ParseFEN(Program.StartPosition);
+                }
+            }
+            else
+            {
+                // FEN missing; fall back to start position
+                ParseFEN(Program.StartPosition);
+            }
+        }
+        else
+        {
+            // Unknown or missing position specifier; default to start position
+            ParseFEN(Program.StartPosition);
+        }
+
+        // ✅ Reset repetition history
+        Search.RepetitionIndex = 0;
+
+        // Parse "moves" section if present
+        if (idx < parts.Length && parts[idx] == "moves")
+        {
+            idx++;
+            while (idx < parts.Length)
+            {
+                int move = ParseMove(parts[idx]);
+                if (move == 0)
+                    break; // illegal or unparsable move
+
+                // ✅ Record position BEFORE the move
+                Search.AddToRepetitionHistory(Zobrist.hashKey);
+
+                MakeMove(move, (int)MoveFlag.allMoves);
+                idx++;
+            }
+        }
+
+        // ✅ Record the final current position
+        Search.AddToRepetitionHistory(Zobrist.hashKey);
+    }
+
+    // Parse UCI "go" command (e.g., "go depth 5")
     public static void ParseGo(string command)
     {
-        string[] parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (string.IsNullOrEmpty(command))
+            return;
 
-        int depth = 64;   // default: search as deep as time allows
+        int depth = -1;
         bool infinite = false;
+        var parts = command.Split([' '], StringSplitOptions.RemoveEmptyEntries);
 
         TimeManagement.ResetForGo();
 
-        // Parse all parameters
         for (int i = 0; i < parts.Length; i++)
         {
-            switch (parts[i])
+            if (parts[i] == "go")
+                continue;
+
+            if (parts[i] == "infinite")
             {
-                case "infinite":
-                    infinite = true;
-                    break;
-
-                case "depth" when i + 1 < parts.Length:
-                    int.TryParse(parts[i + 1], out depth);
-                    break;
-
-                case "movetime" when i + 1 < parts.Length:
-                    int.TryParse(parts[i + 1], out TimeManagement.movetime);
-                    break;
-
-                // Only read time/increment for the side currently to move
-                case "wtime" when i + 1 < parts.Length && side == White:
-                    int.TryParse(parts[i + 1], out TimeManagement.time);
-                    break;
-
-                case "btime" when i + 1 < parts.Length && side == Black:
-                    int.TryParse(parts[i + 1], out TimeManagement.time);
-                    break;
-
-                case "winc" when i + 1 < parts.Length && side == White:
-                    int.TryParse(parts[i + 1], out TimeManagement.inc);
-                    break;
-
-                case "binc" when i + 1 < parts.Length && side == Black:
-                    int.TryParse(parts[i + 1], out TimeManagement.inc);
-                    break;
-
-                case "movestogo" when i + 1 < parts.Length:
-                    int.TryParse(parts[i + 1], out TimeManagement.movestogo);
-                    break;
+                infinite = true;
+            }
+            else if (parts[i] == "depth" && i + 1 < parts.Length)
+            {
+                int.TryParse(parts[i + 1], out depth);
+            }
+            else if (parts[i] == "movetime" && i + 1 < parts.Length)
+            {
+                int.TryParse(parts[i + 1], out TimeManagement.movetime);
+            }
+            else if (parts[i] == "wtime" && i + 1 < parts.Length && side == White)
+            {
+                int.TryParse(parts[i + 1], out TimeManagement.time);
+            }
+            else if (parts[i] == "btime" && i + 1 < parts.Length && side == Black)
+            {
+                int.TryParse(parts[i + 1], out TimeManagement.time);
+            }
+            else if (parts[i] == "winc" && i + 1 < parts.Length && side == White)
+            {
+                int.TryParse(parts[i + 1], out TimeManagement.inc);
+            }
+            else if (parts[i] == "binc" && i + 1 < parts.Length && side == Black)
+            {
+                int.TryParse(parts[i + 1], out TimeManagement.inc);
+            }
+            else if (parts[i] == "movestogo" && i + 1 < parts.Length)
+            {
+                int.TryParse(parts[i + 1], out TimeManagement.movestogo);
             }
         }
 
-        // ── Configure time management ──────────────────────────────────────
         if (infinite)
         {
             TimeManagement.StartInfiniteSearch();
         }
-        else if (TimeManagement.movetime >= 0)
+        else if (TimeManagement.movetime != -1)
         {
             TimeManagement.StartMoveTimeSearch(TimeManagement.movetime);
         }
-        else if (TimeManagement.time >= 0)
+        else if (TimeManagement.time != -1)
         {
-            TimeManagement.StartClockSearch(TimeManagement.time, TimeManagement.inc);
+            TimeManagement.StartClockSearch(
+                TimeManagement.time,
+                TimeManagement.inc);
         }
 
-        // ── Debug: print time management values ───────────────────────────
+        if (depth == -1)
+            depth = 64;
+
         if (Program.debug)
         {
             Console.WriteLine(
-                $"info string " +
-                $"start:{TimeManagement.starttime} " +
+                $"info string start:{TimeManagement.starttime} " +
                 $"soft:{TimeManagement.softStopTime} " +
                 $"hard:{TimeManagement.stoptime} " +
-                $"time:{TimeManagement.time} " +
-                $"inc:{TimeManagement.inc} " +
-                $"depth:{depth}");
+                $"time:{TimeManagement.time} inc:{TimeManagement.inc} depth:{depth}");
         }
 
-        // ── Start searching ────────────────────────────────────────────────
-        Search.SearchPosition(maxDepth: depth);
+        Search.SearchPosition(depth);
+    }
+    // Main UCI loop
+    public static void UciLoop()
+    {
+        // Print engine info
+        Console.WriteLine("id name BBC");
+        Console.WriteLine("id name Amrou");
+        Console.WriteLine("uciok");
+
+        while (true)
+        {
+            if (TimeManagement.quit)
+                break;
+
+            // Read a line from stdin
+            string? input = Console.ReadLine();
+            if (string.IsNullOrEmpty(input))
+                continue;
+
+            // Trim whitespace
+            input = input.Trim();
+
+            // Parse UCI commands
+            if (input.StartsWith("isready"))
+            {
+                Console.WriteLine("readyok");
+            }
+            else if (input.StartsWith("position"))
+            {
+                ParsePosition(input);
+            }
+            else if (input.StartsWith("ucinewgame"))
+            {
+                ParsePosition("position startpos");
+                TranspositionTable.Clear(); // ✅ Clear TT only on new game
+            }
+            else if (input.StartsWith("go"))
+            {
+                ParseGo(input);
+
+                if (TimeManagement.quit)
+                    break;
+            }
+            else if (input.StartsWith("quit"))
+            {
+                break;
+            }
+            else if (input.StartsWith("uci"))
+            {
+                Console.WriteLine("id name BBC");
+                Console.WriteLine("id name Amrou");
+                Console.WriteLine("uciok");
+            }
+        }
     }
 }
