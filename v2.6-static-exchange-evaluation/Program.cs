@@ -124,7 +124,7 @@ class Program
             // ── Setup position ────────────────────
             Board.ParseFEN(fen);
             TranspositionTable.Clear();
-            Search.RepetitionIndex = 0;
+            Search.repetitionIndex = 0;
             Search.AddToRepetitionHistory(Zobrist.hashKey);
 
             // ── Setup time: 1 second ──────────────
@@ -136,16 +136,16 @@ class Program
             Search.SearchPosition(64);
 
             // ── Compare result ────────────────────
-            string engineMove = MoveEncoding.GetMove(Search.LastBestMove).Trim();
+            string engineMove = MoveEncoding.GetMove(Search.lastBestMove).Trim();
             bool correct = engineMove == expectedMove;
             if (correct) passed++;
 
-            totalDepth += Search.LastDepthReached;
+            totalDepth += Search.lastDepthReached;
 
             string status = correct ? "✓ PASS" : "✗ FAIL";
 
             Console.WriteLine($"  [{t + 1,2}/{total}] {status}  {name}");
-            Console.WriteLine($"         Expected: {expectedMove}  Got: {engineMove}  Depth: {Search.LastDepthReached}");
+            Console.WriteLine($"         Expected: {expectedMove}  Got: {engineMove}  Depth: {Search.lastDepthReached}");
             Console.WriteLine();
         }
 

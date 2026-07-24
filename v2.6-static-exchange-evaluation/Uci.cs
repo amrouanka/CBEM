@@ -117,7 +117,7 @@ public static class Uci
         }
 
         // ✅ Reset repetition history
-        Search.RepetitionIndex = 0;
+        Search.repetitionIndex = 0;
 
         // Parse "moves" section if present
         if (idx < parts.Length && parts[idx] == "moves")
