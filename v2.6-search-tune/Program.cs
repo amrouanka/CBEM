@@ -8,27 +8,27 @@ class Program
     public const string PinPosition = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
     public const string Position5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
 
-    // Debug mode variable
+
     public static bool debug = false;
 
     static void Main()
     {
         if (debug)
         {
-            RunTacticalTest(); // [12/24] 13.1 ->  [12/24] 13.5 -> [11/24] 14.8
+            RunTacticalTest();
         }
         else
         {
-            // Connect to the GUI
+
             Uci.UciLoop();
         }
     }
 
-    // ─────────────────────────────────────────────
-    //  Tactical test suite
-    //  Each entry: (FEN, bestMove in coordinate notation, description)
-    //  All positions verified for FEN validity.
-    // ─────────────────────────────────────────────
+
+
+
+
+
     private static readonly (string fen, string bestMove, string name)[] TacticalTests =
     [
         ("8/8/5p2/PR3pk1/8/1P4K1/8/5r2 w - - 3 42",
@@ -121,21 +121,21 @@ class Program
         {
             var (fen, expectedMove, name) = TacticalTests[t];
 
-            // ── Setup position ────────────────────
+
             Board.ParseFEN(fen);
             TranspositionTable.Clear();
             Search.repetitionIndex = 0;
             Search.AddToRepetitionHistory(Zobrist.hashKey);
 
-            // ── Setup time: 1 second ──────────────
-            // Use the proper method — it sets BOTH softStopTime and stoptime
+
+
             TimeManagement.ResetForGo();
             TimeManagement.StartMoveTimeSearch(1000);
 
-            // ── Run search ────────────────────────
+
             Search.SearchPosition(64);
 
-            // ── Compare result ────────────────────
+
             string engineMove = MoveEncoding.GetMove(Search.lastBestMove).Trim();
             bool correct = engineMove == expectedMove;
             if (correct) passed++;
