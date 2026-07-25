@@ -23,8 +23,8 @@ public static class Search
     private const int AspirationRetryLimit = 3;
 
     // Reverse futility pruning
-    private const int ReverseFutilityMaxDepth = 3;
-    private const int ReverseFutilityMarginPerDepth = 150;
+    private const int ReverseFutilityMaxDepth = 4;
+    private const int ReverseFutilityMarginPerDepth = 120;
 
     // Futility pruning
     private const int FutilityMaxDepth = 3;
