@@ -18,7 +18,7 @@ public static class Search
     private const int LmrDivisor = 2;
 
     // Aspiration
-    private const int AspirationWindow = 50;
+    private const int AspirationWindow = 70;
     private const int AspirationMinDepth = 4;
     private const int AspirationRetryLimit = 3;
 
@@ -27,7 +27,7 @@ public static class Search
     private const int ReverseFutilityMarginPerDepth = 120;
 
     // Futility pruning
-    private const int FutilityMaxDepth = 3;
+    private const int FutilityMaxDepth = 4;
     private const int FutilityMarginPerDepth = 120;
 
     // Null move pruning
