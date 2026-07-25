@@ -14,11 +14,11 @@ public static class Search
     // LMR
     private const int FullDepthMoves = 4;
     private const int ReductionLimit = 3;
-    private const int LmrBase = 1;
-    private const int LmrDivisor = 2;
+    private const double LmrBase = 0.75;
+    private const double LmrDivisor = 2.0;
 
     // Aspiration
-    private const int AspirationWindow = 70;
+    private const int AspirationWindow = 50;
     private const int AspirationMinDepth = 4;
     private const int AspirationRetryLimit = 3;
 
