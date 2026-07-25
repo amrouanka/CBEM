@@ -8,7 +8,7 @@ from pathlib import Path
 # ---------------- CONFIG ----------------
 
 CUTECHESS = r"C:\Program Files (x86)\Cute Chess\cutechess-cli.exe"
-ENGINE_EXE = r"C:\Users\Rania\OneDrive\Desktop\CBEM\v2.6-search-tune\bin\Release\net10.0\v2.6-search-tune.exe"
+ENGINE_EXE = r"C:\Users\Rania\OneDrive\Desktop\CBEM\search-tuning\bin\Release\net10.0\search-tuning.exe"
 OPENINGS = r"C:\Users\Rania\Documents\8moves_v3.pgn"
 
 WORKDIR = Path(r"C:\cbem_tuning\pruning")

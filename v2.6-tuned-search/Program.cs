@@ -9,7 +9,7 @@ class Program
     public const string Position5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
 
     // Debug mode variable
-    public static bool debug = true;
+    public static bool debug = false;
 
     static void Main()
     {
@@ -130,7 +130,7 @@ class Program
             // ── Setup time: 1 second ──────────────
             // Use the proper method — it sets BOTH softStopTime and stoptime
             TimeManagement.ResetForGo();
-            TimeManagement.StartMoveTimeSearch(200);
+            TimeManagement.StartMoveTimeSearch(1000);
 
             // ── Run search ────────────────────────
             Search.SearchPosition(64);

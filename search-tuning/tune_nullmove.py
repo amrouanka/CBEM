@@ -8,10 +8,10 @@ from pathlib import Path
 # ---------------- CONFIG ----------------
 
 CUTECHESS = r"C:\Program Files (x86)\Cute Chess\cutechess-cli.exe"
-ENGINE_EXE = r"C:\Users\Rania\OneDrive\Desktop\CBEM\v2.6-search-tune\bin\Release\net10.0\v2.6-search-tune.exe"
+ENGINE_EXE = r"C:\Users\Rania\OneDrive\Desktop\CBEM\search-tuning\bin\Release\net10.0\search-tuning.exe"
 OPENINGS = r"C:\Users\Rania\Documents\8moves_v3.pgn"
 
-WORKDIR = Path(r"C:\cbem_tuning\lmr")
+WORKDIR = Path(r"C:\cbem_tuning\nullmove")
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
 TC = "1+0.1"
@@ -32,11 +32,11 @@ GAMMA = 0.101
 A0 = 0.20
 C0 = 0.10
 
-RANDOM_SEED = 111111
+RANDOM_SEED = 222222
 random.seed(RANDOM_SEED)
 
-LOG_FILE = WORKDIR / "lmr_tuning_log.jsonl"
-BEST_FILE = WORKDIR / "lmr_best_params.json"
+LOG_FILE = WORKDIR / "nullmove_tuning_log.jsonl"
+BEST_FILE = WORKDIR / "nullmove_best_params.json"
 
 # --------------- PARAMETERS ---------------
 
@@ -49,25 +49,25 @@ class Param:
     maxv: int
 
 PARAMS = [
-    Param("FullDepthMoves", "fdm", 4, 1, 8),
-    Param("ReductionLimit", "rl", 3, 1, 6),
-    Param("LmrBase", "lmrbase", 1, 0, 3),
-    Param("LmrDivisor", "lmrdiv", 2, 1, 5),
+    Param("NullMoveMinDepth", "nmdepth", 3, 1, 6),
+    Param("NullMoveBaseReduction", "nmbase", 3, 1, 6),
+    Param("NullMoveDepthDivisor", "nmdepthdiv", 4, 2, 8),
+    Param("NullMoveEvalDivisor", "nmevaldiv", 200, 100, 400),
+    Param("NullMoveEvalBonusCap", "nmbonuscap", 3, 0, 6),
 ]
 
-# Fixed params (not tuned, but must be passed)
+# Fixed params (not tuned)
 FIXED_PARAMS = {
+    "fdm": 4,
+    "rl": 3,
+    "lmrbase": 1,
+    "lmrdiv": 2,
     "aw": 50,
     "awmindepth": 4,
     "rfpdepth": 3,
     "rfp": 150,
     "fpdepth": 3,
     "fp": 120,
-    "nmdepth": 3,
-    "nmbase": 3,
-    "nmdepthdiv": 4,
-    "nmevaldiv": 200,
-    "nmbonuscap": 3,
     "qsdelta": 200,
 }
 
@@ -164,7 +164,7 @@ def main():
     theta = [norm_from_value(p, p.default) for p in PARAMS]
     baseline_values = theta_to_values(theta)
 
-    print("=== LMR TUNING ===")
+    print("=== NULL MOVE TUNING ===")
     print("Tuning:", [p.name for p in PARAMS])
     print("BASELINE:", {p.arg: baseline_values[p.arg] for p in PARAMS})
 
@@ -206,7 +206,7 @@ def main():
 
     tuned_values = theta_to_values(theta)
 
-    print("\n=== LMR TUNING COMPLETE ===")
+    print("\n=== NULL MOVE TUNING COMPLETE ===")
     print(json.dumps({p.arg: tuned_values[p.arg] for p in PARAMS}, indent=2))
 
     verify(baseline_values, tuned_values)
