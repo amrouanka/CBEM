@@ -15,7 +15,7 @@ public static class Search
     private const int FullDepthMoves = 4;
     private const int ReductionLimit = 3;
     private const double LmrBase = 0.75;
-    private const double LmrDivisor = 2.0;
+    private const double LmrDivisor = 2.25;
 
     // Aspiration
     private const int AspirationWindow = 50;
