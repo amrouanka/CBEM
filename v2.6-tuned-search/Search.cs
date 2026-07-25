@@ -12,10 +12,10 @@ public static class Search
     private const int MateThreshold = MateScore - MaxPly;
 
     // LMR
-    private const int FullDepthMoves = 8;
-    private const int ReductionLimit = 4;
+    private const int FullDepthMoves = 4;
+    private const int ReductionLimit = 3;
     private const int LmrBase = 1;
-    private const int LmrDivisor = 3;
+    private const int LmrDivisor = 2;
 
     // Aspiration
     private const int AspirationWindow = 50;

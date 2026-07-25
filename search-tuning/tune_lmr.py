@@ -49,10 +49,10 @@ class Param:
     maxv: int
 
 PARAMS = [
-    Param("FullDepthMoves", "fdm", 4, 1, 8),
-    Param("ReductionLimit", "rl", 3, 1, 6),
-    Param("LmrBase", "lmrbase", 1, 0, 3),
-    Param("LmrDivisor", "lmrdiv", 2, 1, 5),
+    Param("FullDepthMoves", "fdm", 4, 2, 6),
+    Param("ReductionLimit", "rl", 3, 2, 4),
+    Param("LmrBase", "lmrbase", 1, 0, 2),
+    Param("LmrDivisor", "lmrdiv", 2, 1, 3),
 ]
 
 # Fixed params (not tuned, but must be passed)
