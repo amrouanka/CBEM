@@ -56,6 +56,7 @@ public static class Search
 
     private static readonly int[] killerMove1 = new int[MaxPly];
     private static readonly int[] killerMove2 = new int[MaxPly];
+    private static readonly int[,] counterMoves = new int[12, 64];
     private static readonly int[,] historyMoves = new int[12, 64];
 
     private static readonly int[,] mvvLva =
@@ -161,6 +162,7 @@ public static class Search
         Array.Clear(pvLength, 0, pvLength.Length);
         Array.Clear(killerMove1, 0, killerMove1.Length);
         Array.Clear(killerMove2, 0, killerMove2.Length);
+        Array.Clear(counterMoves, 0, counterMoves.Length);
         Array.Clear(historyMoves, 0, historyMoves.Length);
 
         int alpha = -Infinity;
@@ -266,7 +268,7 @@ public static class Search
         }
     }
 
-    private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true)
+    private static int AlphaBeta(int alpha, int beta, int depth, bool allowNullMove = true, int prevMove = 0)
     {
         if ((nodes & TimeCheckMask) == 0)
             TimeManagement.Communicate();
