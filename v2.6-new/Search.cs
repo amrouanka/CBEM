@@ -15,7 +15,7 @@ public static class Search
     private const int FullDepthMoves = 4;
     private const int ReductionLimit = 3;
     private const int LmrBase = 1;
-    private const double LmrDivisor = 2;
+    private const int LmrDivisor = 2;
 
     // Aspiration
     private const int AspirationWindow = 50;
@@ -58,6 +58,9 @@ public static class Search
     private static readonly int[] killerMove1 = new int[MaxPly];
     private static readonly int[] killerMove2 = new int[MaxPly];
     private static readonly int[,] historyMoves = new int[12, 64];
+
+    private static readonly int[] counterMove = new int[64 * 64]; // [from * 64 + to]
+    private static int previousMove = 0; // track the opponent's last move
 
     private static readonly int[,] mvvLva =
     {
