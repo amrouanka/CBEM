@@ -24,7 +24,7 @@ public static class Search
 
     // Reverse futility pruning
     private const int ReverseFutilityMaxDepth = 4;
-    private const int ReverseFutilityMarginPerDepth = 120;
+    private const int ReverseFutilityMarginPerDepth = 110;
 
     // Futility pruning
     private const int FutilityMaxDepth = 4;
