@@ -46,15 +46,14 @@ public static class Search
     private const int AllMoves = (int)MoveFlag.allMoves;
     private const int NoSquare = (int)Square.noSquare;
 
-    // Flat-array stride shifts (all power-of-two so indexing is shift+or, never imul)
-    private const int SquareShift = 6;   // 64 squares
-    private const int SideShift = 12;    // 64 * 64 history block per side
-    private const int PieceShift = 4;    // 16-wide mvv/lva rows (12 used, padded for shift indexing)
-    private const int PvRowShift = 6;    // pvTable row stride == MaxPly == 64
-    private const int LmrRowShift = 6;   // lmrTable row stride == 64
-    private const int KillerShift = 1;   // 2 killers per ply, adjacent in one cache line
+    // Flat-array stride shifts
+    private const int SquareShift = 6;
+    private const int SideShift = 12;
+    private const int PieceShift = 4;
+    private const int PvRowShift = 6;
+    private const int LmrRowShift = 6;
+    private const int KillerShift = 1;
 
-    // [depth][moveIndex] flattened
     private static readonly int[] lmrTable = new int[(MaxPly + 1) << LmrRowShift];
 
     private static int ply;
@@ -64,13 +63,8 @@ public static class Search
     public static int lastBestMove = 0;
     public static int lastDepthReached = 0;
 
-    // Killer 1 and killer 2 for a ply are adjacent -> single cache line touch per node
     private static readonly int[] killerMoves = new int[MaxPly << KillerShift];
-
-    // [piece][target] flattened
     private static readonly int[] counterMoves = new int[12 << SquareShift];
-
-    // [side][source][target] flattened
     private static readonly int[] historyMoves = new int[2 << SideShift];
 
     private static readonly int[,] mvvLva =
@@ -83,10 +77,8 @@ public static class Search
         { 100, 200, 300, 400, 500, 600 },
     };
 
-    // mvvLva pre-expanded to full 12x12 piece indices so the hot path never executes '% 6'
     private static readonly int[] mvvLvaTable = new int[12 << PieceShift];
 
-    // [ply][index] flattened
     private static readonly int[] pvTable = new int[MaxPly << PvRowShift];
     private static readonly int[] pvLength = new int[MaxPly];
 
@@ -364,7 +356,6 @@ public static class Search
 
         int staticEval = inCheck ? -MateScore : Evaluation.Evaluate();
 
-        // Single branch-free predicate shared by the three pruning gates below
         bool quietNode = !pvNode & !inCheck;
         bool prunableNode = quietNode & (currentPly > 0);
 
@@ -450,7 +441,6 @@ public static class Search
         int[] moves = moveList.moves;
         int moveCount = moveList.count;
 
-        // Loop invariants hoisted out of the move loop
         int newDepth = depth - 1;
         int depthSquared = depth * depth;
         int lmrRowBase = depth << LmrRowShift;
@@ -465,9 +455,6 @@ public static class Search
         int originalAlpha = alpha;
         int legalMoves = 0;
         bool anyMovePruned = false;
-
-        int quietMovesPlayedCount = 0;
-        Span<int> quietMovesPlayed = stackalloc int[64];
 
         for (int i = 0; i < moveCount; i++)
         {
@@ -494,9 +481,6 @@ public static class Search
             repetitionTable[repetitionIndex++] = Zobrist.hashKey;
             ply++;
             legalMoves++;
-
-            if (isQuiet && quietMovesPlayedCount < 64)
-                quietMovesPlayed[quietMovesPlayedCount++] = move;
 
             int score;
 
@@ -561,17 +545,7 @@ public static class Search
                     if (hasPrevMove)
                         counterMoves[counterIndex] = move;
 
-                    // historyMoves[historyBase | (GetMoveSource(move) << SquareShift) | GetMoveTarget(move)] += depthSquared;
-
-                    // int malus = -depthSquared;
-                    // for (int q = 0; q < quietMovesPlayedCount; q++)
-                    // {
-                    //     int failedMove = quietMovesPlayed[q];
-                    //     if (failedMove == move)
-                    //         continue;
-
-                    //     historyMoves[historyBase | (GetMoveSource(failedMove) << SquareShift) | GetMoveTarget(failedMove)] += malus;
-                    // }
+                    historyMoves[historyBase | (GetMoveSource(move) << SquareShift) | GetMoveTarget(move)] += depthSquared;
                 }
 
                 TranspositionTable.Store(
@@ -671,7 +645,6 @@ public static class Search
         int moveCount = moveList.count;
         int legalMoves = 0;
 
-        // eval and the delta margin are loop-invariant; only alpha moves
         int deltaBase = eval + QsDeltaMargin;
 
         for (int i = 0; i < moveCount; i++)
