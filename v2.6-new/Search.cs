@@ -59,9 +59,6 @@ public static class Search
     private static readonly int[] killerMove2 = new int[MaxPly];
     private static readonly int[,] historyMoves = new int[12, 64];
 
-    private static readonly int[] counterMove = new int[64 * 64]; // [from * 64 + to]
-    private static int previousMove = 0; // track the opponent's last move
-
     private static readonly int[,] mvvLva =
     {
         { 105, 205, 305, 405, 505, 605 },
