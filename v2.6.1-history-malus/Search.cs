@@ -117,7 +117,8 @@ public static class Search
             return false;
 
         int earliest = index - 1 - halfmoveClock;
-        if (earliest < 0) earliest = 0;
+        if (earliest < 0)
+            earliest = 0;
 
         ulong key = Zobrist.hashKey;
 
@@ -210,7 +211,6 @@ public static class Search
 
             alpha = score - AspirationWindow;
             beta = score + AspirationWindow;
-
             completedDepth = currentDepth;
 
             if (pvTable[0, 0] != 0)
@@ -218,8 +218,9 @@ public static class Search
 
             if (!Program.debug)
             {
+                int rootPvLength = pvLength[0];
                 Console.Write($"info score {FormatUciScore(score)} depth {currentDepth} nodes {nodes} pv ");
-                for (int i = 0; i < pvLength[0]; i++)
+                for (int i = 0; i < rootPvLength; i++)
                     Console.Write($"{GetMove(pvTable[0, i])} ");
                 Console.WriteLine();
             }
@@ -234,7 +235,9 @@ public static class Search
             GenerateMoves(ref moveList);
 
             int[] moves = moveList.moves;
-            for (int i = 0; i < moveList.count; i++)
+            int moveCount = moveList.count;
+
+            for (int i = 0; i < moveCount; i++)
             {
                 int move = moves[i];
                 BoardState state = CopyBoard();
@@ -276,9 +279,10 @@ public static class Search
         if (TimeManagement.stopped)
             return 0;
 
-        pvLength[ply] = ply;
+        int currentPly = ply;
+        pvLength[currentPly] = currentPly;
 
-        if (ply > 0 && IsRepetition())
+        if (currentPly > 0 && IsRepetition())
             return 0;
 
         if (halfmoveClock >= 100)
@@ -286,26 +290,28 @@ public static class Search
 
         bool inCheck = IsInCheck();
 
-        if (inCheck && ply < MaxPly - 10)
+        if (inCheck && currentPly < MaxPly - 10)
             depth++;
 
         if (depth <= 0)
             return Quiescence(alpha, beta);
 
-        if (ply >= MaxPly - 1)
+        if (currentPly >= MaxPly - 1)
             return Evaluation.Evaluate();
 
         nodes++;
 
         bool pvNode = (beta - alpha) > 1;
+        int sideToMove = side;
+        ulong hashKey = Zobrist.hashKey;
 
         int ttMove = 0;
         int ttScore = TranspositionTable.Probe(
-            Zobrist.hashKey,
+            hashKey,
             depth,
             alpha,
             beta,
-            ply,
+            currentPly,
             out ttMove);
 
         if (ttScore != TranspositionTable.NoScore && !pvNode)
@@ -317,12 +323,11 @@ public static class Search
         if (depth <= ReverseFutilityMaxDepth &&
             !pvNode &&
             !inCheck &&
-            ply > 0 &&
+            currentPly > 0 &&
             staticEval > -MateThreshold &&
             staticEval < MateThreshold)
         {
-            int rfpMargin = ReverseFutilityMarginPerDepth * depth;
-            if (staticEval - rfpMargin >= beta)
+            if (staticEval - ReverseFutilityMarginPerDepth * depth >= beta)
                 return beta;
         }
 
@@ -330,12 +335,12 @@ public static class Search
         if (depth >= NullMoveMinDepth &&
             !pvNode &&
             !inCheck &&
-            ply > 0 &&
+            currentPly > 0 &&
             allowNullMove &&
-            HasNonPawnMaterial(side) &&
+            HasNonPawnMaterial(sideToMove) &&
             staticEval >= beta)
         {
-            BoardState nmState = CopyBoard();
+            BoardState nullMoveState = CopyBoard();
 
             Zobrist.hashKey ^= Zobrist.sideKey;
             side ^= 1;
@@ -348,45 +353,47 @@ public static class Search
             }
 
             int evalBonus = (staticEval - beta) / NullMoveEvalDivisor;
-            if (evalBonus > NullMoveEvalBonusCap) evalBonus = NullMoveEvalBonusCap;
+            if (evalBonus > NullMoveEvalBonusCap)
+                evalBonus = NullMoveEvalBonusCap;
 
             int reduction = NullMoveBaseReduction + depth / NullMoveDepthDivisor + evalBonus;
-            if (reduction > depth - 1) reduction = depth - 1;
+            if (reduction > depth - 1)
+                reduction = depth - 1;
 
             ply++;
-            int nmScore = -AlphaBeta(-beta, -beta + 1, depth - 1 - reduction, false);
+            int nullMoveScore = -AlphaBeta(-beta, -beta + 1, depth - 1 - reduction, false);
             ply--;
-            TakeBack(nmState);
+            TakeBack(nullMoveState);
 
             if (TimeManagement.stopped)
                 return 0;
 
-            if (nmScore >= beta)
+            if (nullMoveScore >= beta)
                 return beta;
         }
 
         // Futility pruning
         bool canPrune = false;
         if (depth <= FutilityMaxDepth && !inCheck && !pvNode)
-        {
-            int futMargin = FutilityMarginPerDepth * depth;
-            canPrune = staticEval + futMargin <= alpha;
-        }
+            canPrune = staticEval + FutilityMarginPerDepth * depth <= alpha;
 
         MoveList moveList = new MoveList();
         GenerateMoves(ref moveList);
 
-        // Resolve counter-move for the move the opponent just played
+        bool hasPrevMove = prevMove != 0;
+        int prevPiece = 0;
+        int prevTarget = -1;
         int counterMove = 0;
-        if (prevMove != 0)
+
+        if (hasPrevMove)
         {
-            int prevPiece = GetMovePiece(prevMove);
-            int prevTarget = GetMoveTarget(prevMove);
+            prevPiece = GetMovePiece(prevMove);
+            prevTarget = GetMoveTarget(prevMove);
             counterMove = counterMoves[prevPiece, prevTarget];
         }
 
-        int pvMove = ply == 0 ? pvTable[0, 0] : 0;
-        SortMoves(ref moveList, ttMove, pvMove, counterMove);
+        int pvMove = currentPly == 0 ? pvTable[0, 0] : 0;
+        SortMoves(ref moveList, ttMove, pvMove, counterMove, killerMove1[currentPly], killerMove2[currentPly], sideToMove);
 
         int[] moves = moveList.moves;
         int moveCount = moveList.count;
@@ -398,8 +405,6 @@ public static class Search
         int legalMoves = 0;
         bool anyMovePruned = false;
 
-        // Buffer to track quiet moves searched (for history malus)
-        // stackalloc avoids heap allocation at every node
         int quietMovesPlayedCount = 0;
         Span<int> quietMovesPlayed = stackalloc int[64];
 
@@ -430,7 +435,6 @@ public static class Search
             ply++;
             legalMoves++;
 
-            // Track quiet moves for history malus
             if (isQuiet && quietMovesPlayedCount < 64)
                 quietMovesPlayed[quietMovesPlayedCount++] = move;
 
@@ -488,41 +492,39 @@ public static class Search
             {
                 if (isQuiet)
                 {
-                    if (killerMove1[ply] != move)
+                    if (killerMove1[currentPly] != move)
                     {
-                        killerMove2[ply] = killerMove1[ply];
-                        killerMove1[ply] = move;
+                        killerMove2[currentPly] = killerMove1[currentPly];
+                        killerMove1[currentPly] = move;
                     }
 
-                    // store counter-move keyed on what the opponent just played
-                    if (prevMove != 0)
-                    {
-                        int prevPiece = GetMovePiece(prevMove);
-                        int prevTarget = GetMoveTarget(prevMove);
+                    if (hasPrevMove)
                         counterMoves[prevPiece, prevTarget] = move;
-                    }
 
-                    // History bonus for the move that caused the cutoff
-                    int bonus = depth * depth;
-                    historyMoves[side, GetMoveSource(move), GetMoveTarget(move)] += bonus;
+                    int moveSource = GetMoveSource(move);
+                    int moveTarget = GetMoveTarget(move);
+                    int depthSquared = depth * depth;
 
-                    // History malus for all quiet moves that failed before this cutoff
-                    int malus = -(depth * depth);
+                    historyMoves[sideToMove, moveSource, moveTarget] += depthSquared;
+
+                    int malus = -depthSquared;
                     for (int q = 0; q < quietMovesPlayedCount; q++)
                     {
                         int failedMove = quietMovesPlayed[q];
-                        if (failedMove == move) continue;
-                        historyMoves[side, GetMoveSource(failedMove), GetMoveTarget(failedMove)] += malus;
+                        if (failedMove == move)
+                            continue;
+
+                        historyMoves[sideToMove, GetMoveSource(failedMove), GetMoveTarget(failedMove)] += malus;
                     }
                 }
 
                 TranspositionTable.Store(
-                    Zobrist.hashKey,
+                    hashKey,
                     depth,
                     beta,
                     bestMove,
                     TTFlag.Beta,
-                    ply);
+                    currentPly);
 
                 return beta;
             }
@@ -530,15 +532,18 @@ public static class Search
             if (score > alpha)
             {
                 if (isQuiet)
-                    historyMoves[side, GetMoveSource(move), GetMoveTarget(move)] += depth * depth;
+                    historyMoves[sideToMove, GetMoveSource(move), GetMoveTarget(move)] += depth * depth;
 
                 alpha = score;
 
-                pvTable[ply, ply] = move;
-                int nextPly = ply + 1;
-                for (int next = nextPly; next < pvLength[nextPly]; next++)
-                    pvTable[ply, next] = pvTable[nextPly, next];
-                pvLength[ply] = pvLength[nextPly];
+                pvTable[currentPly, currentPly] = move;
+                int nextPly = currentPly + 1;
+                int childPvLength = pvLength[nextPly];
+
+                for (int next = nextPly; next < childPvLength; next++)
+                    pvTable[currentPly, next] = pvTable[nextPly, next];
+
+                pvLength[currentPly] = childPvLength;
             }
         }
 
@@ -547,11 +552,11 @@ public static class Search
             if (anyMovePruned)
                 return staticEval;
 
-            return inCheck ? -MateScore + ply : 0;
+            return inCheck ? -MateScore + currentPly : 0;
         }
 
         TTFlag flag = alpha <= originalAlpha ? TTFlag.Alpha : TTFlag.Exact;
-        TranspositionTable.Store(Zobrist.hashKey, depth, alpha, bestMove, flag, ply);
+        TranspositionTable.Store(hashKey, depth, alpha, bestMove, flag, currentPly);
 
         return alpha;
     }
@@ -564,7 +569,9 @@ public static class Search
         if (TimeManagement.stopped)
             return 0;
 
-        if (ply >= MaxPly - 1)
+        int currentPly = ply;
+
+        if (currentPly >= MaxPly - 1)
             return Evaluation.Evaluate();
 
         if (halfmoveClock >= 100)
@@ -587,8 +594,10 @@ public static class Search
         }
 
         MoveList moveList = new MoveList();
-        if (inCheck) GenerateMoves(ref moveList);
-        else GenerateCaptureMoves(ref moveList);
+        if (inCheck)
+            GenerateMoves(ref moveList);
+        else
+            GenerateCaptureMoves(ref moveList);
 
         SortMoves(ref moveList);
 
@@ -604,10 +613,10 @@ public static class Search
             {
                 int target = GetMoveTarget(move);
                 int promoted = GetMovePromoted(move);
-                int capVal = GetPieceValue(GetPieceAtSquare(target));
-                int promoVal = promoted != 0 ? GetPieceValue(promoted) - 89 : 0;
+                int capturedValue = GetPieceValue(GetPieceAtSquare(target));
+                int promotionValueDelta = promoted != 0 ? GetPieceValue(promoted) - 89 : 0;
 
-                if (eval + capVal + promoVal + QsDeltaMargin < alpha)
+                if (eval + capturedValue + promotionValueDelta + QsDeltaMargin < alpha)
                     continue;
             }
 
@@ -635,18 +644,25 @@ public static class Search
         }
 
         if (inCheck && legalMoves == 0)
-            return -MateScore + ply;
+            return -MateScore + currentPly;
 
         return alpha;
     }
 
-    private static void SortMoves(ref MoveList moveList, int ttMove = 0, int pvMove = 0, int counterMove = 0)
+    private static void SortMoves(
+        ref MoveList moveList,
+        int ttMove = 0,
+        int pvMove = 0,
+        int counterMove = 0,
+        int killer1 = 0,
+        int killer2 = 0,
+        int sideToMove = 0)
     {
         int count = moveList.count;
         if (count < 2)
         {
             if (count == 1)
-                moveList.scores[0] = ScoreMove(moveList.moves[0], ttMove, pvMove, counterMove);
+                moveList.scores[0] = ScoreMove(moveList.moves[0], ttMove, pvMove, counterMove, killer1, killer2, sideToMove);
             return;
         }
 
@@ -654,27 +670,34 @@ public static class Search
         int[] scores = moveList.scores;
 
         for (int i = 0; i < count; i++)
-            scores[i] = ScoreMove(moves[i], ttMove, pvMove, counterMove);
+            scores[i] = ScoreMove(moves[i], ttMove, pvMove, counterMove, killer1, killer2, sideToMove);
 
         for (int i = 1; i < count; i++)
         {
-            int mv = moves[i];
-            int sc = scores[i];
+            int move = moves[i];
+            int score = scores[i];
             int j = i - 1;
 
-            while (j >= 0 && scores[j] < sc)
+            while (j >= 0 && scores[j] < score)
             {
                 moves[j + 1] = moves[j];
                 scores[j + 1] = scores[j];
                 j--;
             }
 
-            moves[j + 1] = mv;
-            scores[j + 1] = sc;
+            moves[j + 1] = move;
+            scores[j + 1] = score;
         }
     }
 
-    private static int ScoreMove(int move, int ttMove = 0, int pvMove = 0, int counterMove = 0)
+    private static int ScoreMove(
+        int move,
+        int ttMove,
+        int pvMove,
+        int counterMove,
+        int killer1,
+        int killer2,
+        int sideToMove)
     {
         if (move == ttMove) return 30000;
 
@@ -682,25 +705,27 @@ public static class Search
         if (promoted == Q || promoted == q) return 29000;
         if (move == pvMove) return 20000;
 
-        int piece = GetMovePiece(move);
         int target = GetMoveTarget(move);
 
         if (GetMoveCapture(move) != 0)
         {
+            int piece = GetMovePiece(move);
             int victim = GetPieceAtSquare(target);
             return mvvLva[piece % 6, victim % 6] + 10000;
         }
 
-        if (killerMove1[ply] == move) return 9000;
-        if (killerMove2[ply] == move) return 8000;
+        if (move == killer1) return 9000;
+        if (move == killer2) return 8000;
         if (move == counterMove) return 7600;
         if (GetMoveCastling(move) != 0) return 7500;
         if (promoted != 0) return 7200;
 
         int source = GetMoveSource(move);
-        int history = historyMoves[side, source, target];
+        int history = historyMoves[sideToMove, source, target];
 
-        return Math.Clamp(history, -7000, 7000);
+        if (history < -7000) return -7000;
+        if (history > 7000) return 7000;
+        return history;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
