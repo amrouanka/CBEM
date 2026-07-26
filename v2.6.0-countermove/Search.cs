@@ -376,8 +376,17 @@ public static class Search
         MoveList moveList = new MoveList();
         GenerateMoves(ref moveList);
 
+        // Resolve counter-move for the move the opponent just played
+        int counterMove = 0;
+        if (prevMove != 0)
+        {
+            int prevPiece = GetMovePiece(prevMove);
+            int prevTarget = GetMoveTarget(prevMove);
+            counterMove = counterMoves[prevPiece, prevTarget];
+        }
+
         int pvMove = ply == 0 ? pvTable[0, 0] : 0;
-        SortMoves(ref moveList, ttMove, pvMove);
+        SortMoves(ref moveList, ttMove, pvMove, counterMove);
 
         int[] moves = moveList.moves;
         int moveCount = moveList.count;
@@ -420,7 +429,7 @@ public static class Search
 
             if (movesSearched == 0)
             {
-                score = -AlphaBeta(-beta, -alpha, depth - 1);
+                score = -AlphaBeta(-beta, -alpha, depth - 1, true, move);
             }
             else
             {
@@ -435,7 +444,7 @@ public static class Search
                     if (pvNode && reduction > 1)
                         reduction--;
 
-                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction);
+                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction, true, move);
                 }
                 else
                 {
@@ -444,10 +453,10 @@ public static class Search
 
                 if (score > alpha)
                 {
-                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
+                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1, true, move);
 
                     if (score > alpha && score < beta)
-                        score = -AlphaBeta(-beta, -alpha, depth - 1);
+                        score = -AlphaBeta(-beta, -alpha, depth - 1, true, move);
                 }
             }
 
@@ -474,6 +483,14 @@ public static class Search
                     {
                         killerMove2[ply] = killerMove1[ply];
                         killerMove1[ply] = move;
+                    }
+
+                    // store counter-move keyed on what the opponent just played
+                    if (prevMove != 0)
+                    {
+                        int prevPiece = GetMovePiece(prevMove);
+                        int prevTarget = GetMoveTarget(prevMove);
+                        counterMoves[prevPiece, prevTarget] = move;
                     }
                 }
 
@@ -601,13 +618,13 @@ public static class Search
         return alpha;
     }
 
-    private static void SortMoves(ref MoveList moveList, int ttMove = 0, int pvMove = 0)
+    private static void SortMoves(ref MoveList moveList, int ttMove = 0, int pvMove = 0, int counterMove = 0)
     {
         int count = moveList.count;
         if (count < 2)
         {
             if (count == 1)
-                moveList.scores[0] = ScoreMove(moveList.moves[0], ttMove, pvMove);
+                moveList.scores[0] = ScoreMove(moveList.moves[0], ttMove, pvMove, counterMove);
             return;
         }
 
@@ -615,7 +632,7 @@ public static class Search
         int[] scores = moveList.scores;
 
         for (int i = 0; i < count; i++)
-            scores[i] = ScoreMove(moves[i], ttMove, pvMove);
+            scores[i] = ScoreMove(moves[i], ttMove, pvMove, counterMove);
 
         for (int i = 1; i < count; i++)
         {
@@ -635,7 +652,7 @@ public static class Search
         }
     }
 
-    private static int ScoreMove(int move, int ttMove = 0, int pvMove = 0)
+    private static int ScoreMove(int move, int ttMove = 0, int pvMove = 0, int counterMove = 0)
     {
         if (move == ttMove) return 30000;
 
@@ -654,6 +671,7 @@ public static class Search
 
         if (killerMove1[ply] == move) return 9000;
         if (killerMove2[ply] == move) return 8000;
+        if (move == counterMove) return 7600;
         if (GetMoveCastling(move) != 0) return 7500;
         if (promoted != 0) return 7200;
 
