@@ -1,30 +1,31 @@
 # CBEM Chess Engine Evolution
 
-This repository is a step-by-step implementation of a chess engine in C#. It starts from a simple alpha-beta search engine and gradually evolves into a more advanced engine with modern search heuristics, evaluation improvements, tuning, and UCI support.
+This repository documents the step-by-step evolution of a chess engine in C#. It starts from a simple alpha-beta search engine and grows into a stronger engine with improved evaluation, pruning, move ordering, tuning, and UCI support.
 
 ## Project goal
 
-The purpose of this project is to learn and demonstrate how a chess engine grows over time:
+The purpose of this project is to learn and demonstrate how a chess engine develops over time:
 
-- basic board representation and move generation
-- alpha-beta search
-- quiescence search
-- move ordering
-- iterative deepening
-- evaluation improvements
-- pruning and reduction heuristics
-- transposition table usage
-- tuning and optimization
+- board representation and legal move generation
+- alpha-beta and quiescence search
+- move ordering and pruning heuristics
+- iterative deepening and time management
+- transposition tables and aspiration windows
+- evaluation improvements and tuning
 - UCI protocol integration
+- low-level search optimizations and cache-friendly data layouts
 
 ## Repository structure
 
-The repository contains multiple versioned folders, each representing one stage of the engine development.
+The repository contains multiple versioned folders, each representing a stage of engine development.
+
+- The folder named search-tuning contains tuning scripts and utilities for experimenting with search and evaluation parameters.
+- The latest work is in v2.6.3-search-flat-tables, which focuses on micro-optimizations such as flattened history, counter, LMR, and PV tables for better data locality and reduced overhead.
 
 ## Evolution history
 
 ### 1. v1.0-alpha-beta
-- Initial chess engine foundation
+- Initial engine foundation
 - Basic board representation
 - Legal move generation
 - Alpha-beta search
@@ -33,103 +34,91 @@ The repository contains multiple versioned folders, each representing one stage 
 ### 2. v1.1-quiescence
 - Added quiescence search
 - Reduced horizon effect in tactical positions
-- Improved endgame/quiet-search behavior
 
 ### 3. v1.2-mvv-lva
 - Introduced MVV-LVA move ordering
-- Better tactical move prioritization
-- Improved search efficiency
+- Improved tactical move prioritization
 
 ### 4. v1.3-move-ordering
 - Expanded move ordering strategies
-- Improved search pruning effectiveness
-- Better handling of promising moves
+- Improved search efficiency
 
 ### 5. v1.4-iterative-deepening
 - Added iterative deepening
 - Better time management support
-- More practical search behavior for real-time play
 
 ### 6. v1.5-pesto-eval
-- Replaced the basic evaluation with a PeSTO-style evaluation approach
+- Replaced the basic evaluation with a PeSTO-style evaluation
 - Added piece-square tables and positional awareness
-- Stronger positional evaluation
 
 ### 7. v1.6-lmr
 - Added late move reduction (LMR)
 - Reduced search cost on less promising moves
-- Improved overall performance
 
 ### 8. v1.7-uci
 - Implemented the Universal Chess Interface (UCI) protocol
-- Enabled standard chess engine communication
-- Made the engine usable by GUI tools and test harnesses
+- Enabled communication with GUIs and test harnesses
 
 ### 9. v1.8-null-move
 - Added null move pruning
 - Improved search speed in middlegames and endgames
-- Reduced node count for deeper searches
 
 ### 10. v1.9-aspiration
 - Added aspiration windows
-- Improved iterative deepening search stability
-- Better handling of principal variation search flow
+- Improved iterative deepening stability
 
 ### 11. v2.0-transposition-table
 - Added a transposition table
 - Reduced repeated search work
-- Improved efficiency across positions
 
 ### 12. v2.1-stable
-- Focused on stability and correctness
-- Fixed rough edges in search and engine behavior
+- Focused on correctness and stability
 - Prepared the engine for further optimization
 
 ### 13. v2.2-rfp-ordering
 - Added reverse futility pruning (RFP)
-- Improved move ordering and pruning logic
-- Further reduced unnecessary search branches
+- Improved pruning and move ordering logic
 
 ### 14. v2.3-optimized-board-state
-- Optimized the board representation and state handling
+- Optimized board state handling
 - Reduced overhead in move application and undo operations
-- Improved engine performance
 
 ### 15. v2.4-evaluation
 - Refined the evaluation function
 - Improved positional understanding
-- Added more nuanced evaluation features
 
 ### 16. v2.4.1-texel-tuning
 - Introduced Texel-style tuning work
-- Adjusted evaluation weights based on testing
-- Improved strength through parameter tuning
+- Adjusted evaluation weights through testing
 
 ### 17. v2.5-tuned
 - Applied broader tuning of search and evaluation parameters
 - Improved overall engine strength
-- Made the engine more balanced and consistent
 
 ### 18. v2.6.0-countermove
-- Added counter-move heuristic
+- Added counter-move heuristics
 - Improved move ordering in tactical lines
-- Increased search efficiency in repeated patterns
 
 ### 19. v2.6.1-history-malus
 - Added history malus for quiet moves
-- Improved move ordering reliability
-- Reduced over-prioritization of bad quiet moves
+- Reduced over-prioritization of poor quiet moves
 
 ### 20. v2.6.2-conthist-1ply
 - Added continuation history with 1-ply depth
 - Further improved move ordering quality
-- Made the engine more selective and efficient in search
 
-## Notes on the tuning folder
+### 21. v2.6.3-search-flat-tables
+- Applied search micro-optimizations
+- Flattened hot search tables for better cache locality
+- Reduced overhead in move ordering and PV handling
 
-The folder named search-tuning contains tuning-related scripts and utilities used to experiment with search and evaluation parameters. It complements the versioned engine folders and shows the engineering side of the project.
+## Build and run
 
+Each versioned folder contains its own C# project. You can build or run a project with the standard .NET CLI:
+
+- dotnet build <project>.csproj
+- dotnet run --project <project>.csproj
 
 ## Summary
 
-This repository shows the full evolution of a chess engine from a basic search prototype to a more advanced, competitive-style engine with modern pruning and ordering techniques.
+This repository shows the full evolution of a chess engine from a basic prototype to a more advanced, competitive-style engine with modern search and evaluation techniques.
