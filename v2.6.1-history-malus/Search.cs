@@ -57,7 +57,7 @@ public static class Search
     private static readonly int[] killerMove1 = new int[MaxPly];
     private static readonly int[] killerMove2 = new int[MaxPly];
     private static readonly int[,] counterMoves = new int[12, 64];
-    private static readonly int[,] historyMoves = new int[12, 64];
+    private static readonly int[,,] historyMoves = new int[2, 64, 64];
 
     private static readonly int[,] mvvLva =
     {
@@ -399,8 +399,9 @@ public static class Search
         bool anyMovePruned = false;
 
         // Buffer to track quiet moves searched (for history malus)
+        // stackalloc avoids heap allocation at every node
         int quietMovesPlayedCount = 0;
-        int[] quietMovesPlayed = new int[64];
+        Span<int> quietMovesPlayed = stackalloc int[64];
 
         for (int i = 0; i < moveCount; i++)
         {
@@ -503,7 +504,7 @@ public static class Search
 
                     // History bonus for the move that caused the cutoff
                     int bonus = depth * depth;
-                    historyMoves[GetMovePiece(move), GetMoveTarget(move)] += bonus;
+                    historyMoves[side, GetMoveSource(move), GetMoveTarget(move)] += bonus;
 
                     // History malus for all quiet moves that failed before this cutoff
                     int malus = -(depth * depth);
@@ -511,7 +512,7 @@ public static class Search
                     {
                         int failedMove = quietMovesPlayed[q];
                         if (failedMove == move) continue;
-                        historyMoves[GetMovePiece(failedMove), GetMoveTarget(failedMove)] += malus;
+                        historyMoves[side, GetMoveSource(failedMove), GetMoveTarget(failedMove)] += malus;
                     }
                 }
 
@@ -528,6 +529,9 @@ public static class Search
 
             if (score > alpha)
             {
+                if (isQuiet)
+                    historyMoves[side, GetMoveSource(move), GetMoveTarget(move)] += depth * depth;
+
                 alpha = score;
 
                 pvTable[ply, ply] = move;
@@ -693,7 +697,9 @@ public static class Search
         if (GetMoveCastling(move) != 0) return 7500;
         if (promoted != 0) return 7200;
 
-        int history = historyMoves[piece, target];
+        int source = GetMoveSource(move);
+        int history = historyMoves[side, source, target];
+
         return Math.Clamp(history, -7000, 7000);
     }
 
