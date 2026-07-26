@@ -57,7 +57,8 @@ public static class Search
     private static readonly int[] killerMove1 = new int[MaxPly];
     private static readonly int[] killerMove2 = new int[MaxPly];
     private static readonly int[,] counterMoves = new int[12, 64];
-    private static readonly int[,] historyMoves = new int[12, 64];
+    private static readonly int[,,] historyMoves = new int[2, 64, 64];
+    private static readonly int[,,,,] continuationHistory = new int[12, 64, 2, 64, 64];
 
     private static readonly int[,] mvvLva =
     {
@@ -164,6 +165,7 @@ public static class Search
         Array.Clear(killerMove2, 0, killerMove2.Length);
         Array.Clear(counterMoves, 0, counterMoves.Length);
         Array.Clear(historyMoves, 0, historyMoves.Length);
+        Array.Clear(continuationHistory, 0, continuationHistory.Length);
 
         int alpha = -Infinity;
         int beta = Infinity;
@@ -376,8 +378,20 @@ public static class Search
         MoveList moveList = new MoveList();
         GenerateMoves(ref moveList);
 
+        // Resolve counter-move for the move the opponent just played
+        int prevPiece = 0;
+        int prevTarget = 0;
+        int counterMove = 0;
+
+        if (prevMove != 0)
+        {
+            prevPiece = GetMovePiece(prevMove);
+            prevTarget = GetMoveTarget(prevMove);
+            counterMove = counterMoves[prevPiece, prevTarget];
+        }
+
         int pvMove = ply == 0 ? pvTable[0, 0] : 0;
-        SortMoves(ref moveList, ttMove, pvMove);
+        SortMoves(ref moveList, ttMove, pvMove, counterMove, prevPiece, prevTarget);
 
         int[] moves = moveList.moves;
         int moveCount = moveList.count;
@@ -388,6 +402,11 @@ public static class Search
         int originalAlpha = alpha;
         int legalMoves = 0;
         bool anyMovePruned = false;
+
+        // Buffer to track quiet moves searched (for history malus)
+        // stackalloc avoids heap allocation at every node
+        int quietMovesPlayedCount = 0;
+        Span<int> quietMovesPlayed = stackalloc int[64];
 
         for (int i = 0; i < moveCount; i++)
         {
@@ -416,11 +435,15 @@ public static class Search
             ply++;
             legalMoves++;
 
+            // Track quiet moves for history malus
+            if (isQuiet && quietMovesPlayedCount < 64)
+                quietMovesPlayed[quietMovesPlayedCount++] = move;
+
             int score;
 
             if (movesSearched == 0)
             {
-                score = -AlphaBeta(-beta, -alpha, depth - 1);
+                score = -AlphaBeta(-beta, -alpha, depth - 1, true, move);
             }
             else
             {
@@ -435,7 +458,7 @@ public static class Search
                     if (pvNode && reduction > 1)
                         reduction--;
 
-                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction);
+                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1 - reduction, true, move);
                 }
                 else
                 {
@@ -444,10 +467,10 @@ public static class Search
 
                 if (score > alpha)
                 {
-                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1);
+                    score = -AlphaBeta(-alpha - 1, -alpha, depth - 1, true, move);
 
                     if (score > alpha && score < beta)
-                        score = -AlphaBeta(-beta, -alpha, depth - 1);
+                        score = -AlphaBeta(-beta, -alpha, depth - 1, true, move);
                 }
             }
 
@@ -475,6 +498,27 @@ public static class Search
                         killerMove2[ply] = killerMove1[ply];
                         killerMove1[ply] = move;
                     }
+
+                    // store counter-move keyed on what the opponent just played
+                    if (prevMove != 0)
+                    {
+                        int prevPiece = GetMovePiece(prevMove);
+                        int prevTarget = GetMoveTarget(prevMove);
+                        counterMoves[prevPiece, prevTarget] = move;
+                    }
+
+                    // History bonus for the move that caused the cutoff
+                    int bonus = depth * depth;
+                    historyMoves[side, GetMoveSource(move), GetMoveTarget(move)] += bonus;
+
+                    // History malus for all quiet moves that failed before this cutoff
+                    int malus = -(depth * depth);
+                    for (int q = 0; q < quietMovesPlayedCount; q++)
+                    {
+                        int failedMove = quietMovesPlayed[q];
+                        if (failedMove == move) continue;
+                        historyMoves[side, GetMoveSource(failedMove), GetMoveTarget(failedMove)] += malus;
+                    }
                 }
 
                 TranspositionTable.Store(
@@ -491,7 +535,7 @@ public static class Search
             if (score > alpha)
             {
                 if (isQuiet)
-                    historyMoves[GetMovePiece(move), GetMoveTarget(move)] += depth * depth;
+                    historyMoves[side, GetMoveSource(move), GetMoveTarget(move)] += depth * depth;
 
                 alpha = score;
 
@@ -601,13 +645,13 @@ public static class Search
         return alpha;
     }
 
-    private static void SortMoves(ref MoveList moveList, int ttMove = 0, int pvMove = 0)
+    private static void SortMoves(ref MoveList moveList, int ttMove = 0, int pvMove = 0, int counterMove = 0)
     {
         int count = moveList.count;
         if (count < 2)
         {
             if (count == 1)
-                moveList.scores[0] = ScoreMove(moveList.moves[0], ttMove, pvMove);
+                moveList.scores[0] = ScoreMove(moveList.moves[0], ttMove, pvMove, counterMove);
             return;
         }
 
@@ -615,7 +659,7 @@ public static class Search
         int[] scores = moveList.scores;
 
         for (int i = 0; i < count; i++)
-            scores[i] = ScoreMove(moves[i], ttMove, pvMove);
+            scores[i] = ScoreMove(moves[i], ttMove, pvMove, counterMove);
 
         for (int i = 1; i < count; i++)
         {
@@ -635,7 +679,7 @@ public static class Search
         }
     }
 
-    private static int ScoreMove(int move, int ttMove = 0, int pvMove = 0)
+    private static int ScoreMove(int move, int ttMove = 0, int pvMove = 0, int counterMove = 0)
     {
         if (move == ttMove) return 30000;
 
@@ -654,11 +698,14 @@ public static class Search
 
         if (killerMove1[ply] == move) return 9000;
         if (killerMove2[ply] == move) return 8000;
+        if (move == counterMove) return 7600;
         if (GetMoveCastling(move) != 0) return 7500;
         if (promoted != 0) return 7200;
 
-        int history = historyMoves[piece, target];
-        return history > 7000 ? 7000 : history;
+        int source = GetMoveSource(move);
+        int history = historyMoves[side, source, target];
+
+        return Math.Clamp(history, -7000, 7000);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
