@@ -103,9 +103,9 @@ The repository contains multiple versioned folders, each representing a stage of
 - Added history malus for quiet moves
 - Reduced over-prioritization of poor quiet moves
 
-### 20. v2.6.2-conthist-1ply
-- Added continuation history with 1-ply depth
-- Further improved move ordering quality
+### 20. v2.6.2-search-micro-opts
+- Applied search micro-optimizations
+- Reduced overhead in move ordering and PV handling
 
 ### 21. v2.6.3-search-flat-tables
 - Applied search micro-optimizations
