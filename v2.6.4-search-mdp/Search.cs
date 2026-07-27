@@ -486,6 +486,23 @@ public static class Search
 
         nodes++;
 
+        // Mate distance pruning
+        int matingScore = MateScore - currentPly;
+        if (matingScore < beta)
+        {
+            beta = matingScore;
+            if (alpha >= matingScore)
+                return matingScore;
+        }
+
+        int matedScore = -MateScore + currentPly;
+        if (matedScore > alpha)
+        {
+            alpha = matedScore;
+            if (beta <= matedScore)
+                return matedScore;
+        }
+
         bool pvNode = (beta - alpha) > 1;
 
         // Cache static fields that we read multiple times below
