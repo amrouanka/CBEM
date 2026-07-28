@@ -30,8 +30,10 @@ public sealed class EvalWeights
     public int RookOpenMg = 20;
     public int RookOpenEg = 12;
 
-    public int[] PassedMg = [0, 10, 10, 15, 25, 40, 70, 0];
-    public int[] PassedEg = [0, 15, 20, 35, 55, 90, 140, 0];
+    public int[] PassedMg = [0, 15, 15, 17, 10, 6, 0, 0];
+    public int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
+    // public int[] PassedMg = [0, 70, 40, 25, 15, 10, 10, 0];
+    // public int[] PassedEg = [0, 140, 90, 55, 35, 20, 15, 0];
 
     public int IsolatedMg = -8;
     public int IsolatedEg = -12;
@@ -113,6 +115,31 @@ public sealed class EvalWeights
             sb.Append(baseEg[i] + adjEg[i]);
         }
         sb.AppendLine("];");
+
+        sb.AppendLine();
+        sb.AppendLine($"private const int BishopPairMg = {BishopPairMg};");
+        sb.AppendLine($"private const int BishopPairEg = {BishopPairEg};");
+        sb.AppendLine();
+        sb.AppendLine($"private const int KnightMobMg = {KnightMobMg}, KnightMobEg = {KnightMobEg};");
+        sb.AppendLine($"private const int BishopMobMg = {BishopMobMg}, BishopMobEg = {BishopMobEg};");
+        sb.AppendLine();
+        sb.AppendLine($"private const int RookSemiOpenMg = {RookSemiOpenMg}, RookSemiOpenEg = {RookSemiOpenEg};");
+        sb.AppendLine($"private const int RookOpenMg = {RookOpenMg}, RookOpenEg = {RookOpenEg};");
+        sb.AppendLine();
+        sb.Append("private static readonly int[] PassedMg = [");
+        sb.Append(string.Join(", ", PassedMg));
+        sb.AppendLine("];");
+        sb.Append("private static readonly int[] PassedEg = [");
+        sb.Append(string.Join(", ", PassedEg));
+        sb.AppendLine("];");
+        sb.AppendLine();
+        sb.AppendLine($"private const int IsolatedMg = {IsolatedMg};");
+        sb.AppendLine($"private const int IsolatedEg = {IsolatedEg};");
+        sb.AppendLine();
+        sb.AppendLine($"private const int KingOwnOpenMg = {KingOwnOpenMg}, KingOwnSemiOpenMg = {KingOwnSemiOpenMg};");
+        sb.AppendLine($"private const int KingAdjacentOpenMg = {KingAdjacentOpenMg}, KingAdjacentSemiOpenMg = {KingAdjacentSemiOpenMg};");
+        sb.AppendLine();
+        sb.AppendLine($"private const int KnightOutpostMg = {KnightOutpostMg};");
 
         return sb.ToString();
     }

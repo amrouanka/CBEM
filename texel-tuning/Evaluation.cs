@@ -138,6 +138,12 @@ public static class Evaluation
 
         mg += f.KnightOutpostBalance * w.KnightOutpostMg;
 
+        for (int rank = 1; rank <= 6; rank++)
+        {
+            mg += f.PassedPawnBalance[rank] * w.PassedMg[rank];
+            eg += f.PassedPawnBalance[rank] * w.PassedEg[rank];
+        }
+
         int mgPhase = Math.Min(f.Phase, TotalPhase);
         int egPhase = TotalPhase - mgPhase;
 
@@ -302,6 +308,8 @@ public static class Evaluation
             BitboardOperations.PopBit(ref bb, sq);
         }
 
+        // passed pawns
+
         for (ulong bb = bitboards[n]; bb != 0;)
         {
             int sq = BitboardOperations.GetLs1bIndex(bb);
@@ -312,6 +320,34 @@ public static class Evaluation
                 (BlackOutpostMask[sq] & wPawns) == 0)
             {
                 f.KnightOutpostBalance--;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        // Passed pawns - White
+        for (ulong bb = wPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int rank = sq / 8;   // inverted indexing: 0 = 8th rank, 7 = 1st rank
+
+            if ((WhitePassedMask[sq] & bPawns) == 0)
+            {
+                f.PassedPawnBalance[rank]++;
+            }
+
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        // Passed pawns - Black
+        for (ulong bb = bPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            int rank = 7 - (sq / 8);   // mirror into same inverted rank indexing
+
+            if ((BlackPassedMask[sq] & wPawns) == 0)
+            {
+                f.PassedPawnBalance[rank]--;
             }
 
             BitboardOperations.PopBit(ref bb, sq);
@@ -398,6 +434,8 @@ public static class Evaluation
     //   Black mirror: mirroredRank = 7 - rank
     private static readonly int[] PassedMg = [0, 15, 15, 17, 10, 6, 0, 0];
     private static readonly int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
+    // private static readonly int[] PassedMg = [0, 70, 40, 25, 15, 10, 10, 0];
+    // private static readonly int[] PassedEg = [0, 140, 90, 55, 35, 20, 15, 0];
 
     // Isolated pawn (no friendly pawn on adjacent files)
     private const int IsolatedMg = -11;
