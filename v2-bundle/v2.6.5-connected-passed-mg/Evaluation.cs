@@ -29,12 +29,12 @@ using static MoveGenerator;
 ///     ✓ Rook open / semi-open files
 ///     ✓ King open-file penalty
 ///     ✓ Knight outposts
+///     ✓ Connected passed pawns (MG only)
 ///
 /// Tested and rejected:
 ///     ✗ Doubled pawns
 ///     ✗ Rook on 7th rank
 ///     ✗ Bishop outposts
-///     ✗ Connected passed pawns
 ///     ✗ Pawn shield king safety
 /// </summary>
 public static class Evaluation
@@ -83,6 +83,9 @@ public static class Evaluation
     //   Black mirror: mirroredRank = 7 - rank
     private static readonly int[] PassedMg = [0, 15, 15, 17, 10, 6, 0, 0];
     private static readonly int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
+
+    // Connected passed pawns (middlegame only)
+    private static readonly int[] ConnectedPassedMg = [0, 15, 22, 35, 48, 65, 0, 0];
 
     // Isolated pawn (no friendly pawn on adjacent files)
     private const int IsolatedMg = -11;
@@ -438,6 +441,7 @@ public static class Evaluation
         ScoreRookFiles(ref mg, ref eg);
         ScoreKingExposure(ref mg);
         ScoreKnightOutposts(ref mg);
+        ScoreConnectedPassedPawns(ref mg);
 
         // ---- Taper and return ----
         int mgPhase = Math.Min(phase, TotalPhase);
@@ -500,6 +504,48 @@ public static class Evaluation
                 eg -= PassedEg[rank];
             }
             BitboardOperations.PopBit(ref bb, sq);
+        }
+    }
+
+    private static void ScoreConnectedPassedPawns(ref int mg)
+    {
+        ulong wPawns = bitboards[P], bPawns = bitboards[p];
+        ulong wPassed = 0UL, bPassed = 0UL;
+
+        // Identify passed pawns (we already do this in ScorePassedPawns, but duplicating is fine for clarity)
+        for (ulong bb = wPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((WhitePassedMask[sq] & bPawns) == 0)
+                wPassed |= 1UL << sq;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        for (ulong bb = bPawns; bb != 0;)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(bb);
+            if ((BlackPassedMask[sq] & wPawns) == 0)
+                bPassed |= 1UL << sq;
+            BitboardOperations.PopBit(ref bb, sq);
+        }
+
+        ScoreConnected(wPassed, +1, ref mg);
+        ScoreConnected(bPassed, -1, ref mg);
+    }
+
+    private static void ScoreConnected(ulong passedPawns, int sign, ref int mg)
+    {
+        while (passedPawns != 0)
+        {
+            int sq = BitboardOperations.GetLs1bIndex(passedPawns);
+            int rank = sq / 8;
+            int file = sq % 8;
+
+            // Any other passed pawn on adjacent file = connected
+            if ((AdjacentFiles[file] & passedPawns) != 0)
+                mg += sign * ConnectedPassedMg[rank];
+
+            BitboardOperations.PopBit(ref passedPawns, sq);
         }
     }
 
