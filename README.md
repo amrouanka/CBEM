@@ -17,19 +17,22 @@ The purpose of this project is to learn and demonstrate how a chess engine devel
 
 ## Repository structure
 
-The repository contains multiple versioned folders, each representing a stage of engine development.
+The repository contains multiple versioned folders, each representing a stage of engine development:
 
-- The folder named search-tuning contains tuning scripts and utilities for experimenting with search and evaluation parameters.
-- The latest work is in v2.6.3-search-flat-tables, which focuses on micro-optimizations such as flattened history, counter, LMR, and PV tables for better data locality and reduced overhead.
+- `v1-bundle/`: Foundation stages from basic alpha-beta (`v1.0`) through aspiration windows (`v1.9`).
+- `v2-bundle/`: Advanced search heuristics, transposition tables, pruning, and evaluation upgrades.
+- `tools/`: Standalone utilities including `search-tuning` and a global `texel-tuning` framework for optimizing evaluation weights.
+- `data/`: Test suites, PGN databases, and EPD training datasets.
+- `active-dev/`: The active workspace for ongoing development and experimental features.
+
+The latest stable milestone is **v2.6.5-positional-tuning**, which integrates automated Texel tuning to mathematically optimize positional and structural evaluation parameters.
 
 ## Evolution history
 
 ### 1. v1.0-alpha-beta
 - Initial engine foundation
-- Basic board representation
-- Legal move generation
-- Alpha-beta search
-- Simple evaluation
+- Basic board representation and legal move generation
+- Alpha-beta search with simple material evaluation
 
 ### 2. v1.1-quiescence
 - Added quiescence search
@@ -41,84 +44,84 @@ The repository contains multiple versioned folders, each representing a stage of
 
 ### 4. v1.3-move-ordering
 - Expanded move ordering strategies
-- Improved search efficiency
+- Improved search efficiency and cutoff rates
 
 ### 5. v1.4-iterative-deepening
 - Added iterative deepening
-- Better time management support
+- Better time management and move ordering support
 
-### 6. v1.5-pesto-eval
-- Replaced the basic evaluation with a PeSTO-style evaluation
-- Added piece-square tables and positional awareness
+### 6. v1.5-pesto-psqt
+- Replaced basic evaluation with a PeSTO-style evaluation
+- Added piece-square tables (PSQT) and positional awareness
 
 ### 7. v1.6-lmr
-- Added late move reduction (LMR)
-- Reduced search cost on less promising moves
+- Added Late Move Reduction (LMR)
+- Reduced search depth on less promising quiet moves
 
 ### 8. v1.7-uci
 - Implemented the Universal Chess Interface (UCI) protocol
-- Enabled communication with GUIs and test harnesses
+- Enabled communication with GUIs and automated test harnesses
 
 ### 9. v1.8-null-move
-- Added null move pruning
+- Added Null Move Pruning (NMP)
 - Improved search speed in middlegames and endgames
 
 ### 10. v1.9-aspiration
 - Added aspiration windows
-- Improved iterative deepening stability
+- Improved iterative deepening stability and search speed
 
-### 11. v2.0-transposition-table
-- Added a transposition table
-- Reduced repeated search work
+### 11. v2.0-tt
+- Added a Transposition Table (TT)
+- Reduced repeated search work across transpositions and iterative deepening
 
 ### 12. v2.1-stable
-- Focused on correctness and stability
-- Prepared the engine for further optimization
+- Focused on correctness, bugfixes, and engine stability
+- Established a solid baseline for advanced search optimizations
 
-### 13. v2.2-rfp-ordering
-- Added reverse futility pruning (RFP)
-- Improved pruning and move ordering logic
+### 13. v2.2-rfp
+- Added Reverse Futility Pruning (RFP)
+- Improved forward pruning logic for positions with large static evaluation margins
 
-### 14. v2.3-optimized-board-state
-- Optimized board state handling
-- Reduced overhead in move application and undo operations
+### 14. v2.3-board-opt
+- Optimized board state representation and handling
+- Reduced CPU overhead in move application (`MakeMove` / `UnmakeMove`)
 
-### 15. v2.4-evaluation
-- Refined the evaluation function
-- Improved positional understanding
+### 15. v2.4-new-eval
+- Expanded and restructured the evaluation function
+- Added richer positional terms and structural awareness
 
-### 16. v2.4.1-texel-tuning
-- Introduced Texel-style tuning work
-- Adjusted evaluation weights through testing
+### 16. v2.5-const-tuning
+- Applied automated tuning to core evaluation constants and search parameters
+- Improved overall engine strength and weight balance
 
-### 17. v2.5-tuned
-- Applied broader tuning of search and evaluation parameters
-- Improved overall engine strength
+### 17. archived-v2.6.0-countermove
+- Experimental: Added counter-move heuristic for quiet move ordering
+- *Archived for historical reference after empirical testing*
 
-### 18. v2.6.0-countermove
-- Added counter-move heuristics
-- Improved move ordering in tactical lines
+### 18. archived-v2.6.1-history-malus
+- Experimental: Added history malus penalties for failing quiet moves
+- *Archived for historical reference after empirical testing*
 
-### 19. v2.6.1-history-malus
-- Added history malus for quiet moves
-- Reduced over-prioritization of poor quiet moves
-
-### 20. v2.6.2-search-micro-opts
+### 19. v2.6.2-search-opts
 - Applied search micro-optimizations
-- Reduced overhead in move ordering and PV handling
+- Reduced overhead in move ordering, killer moves, and PV table handling
 
-### 21. v2.6.3-search-flat-tables
-- Applied search micro-optimizations
-- Flattened hot search tables for better cache locality
-- Reduced overhead in move ordering and PV handling
+### 20. v2.6.3-search-flat-tables
+- Flattened multidimensional search tables (history, counter, LMR) into 1D arrays
+- Improved CPU cache locality and reduced array indexing overhead
+
+### 21. v2.6.4-search-mdp
+- Added Mate Distance Pruning (MDP)
+- Early pruning of search nodes when shorter checkmates are already found
+
+### 22. v2.6.5-positional-tuning
+- Integrated a global Texel tuning framework
+- Re-tuned positional bonuses, mobility, king safety, and pawn structure parameters against EPD datasets
 
 ## Build and run
 
 Each versioned folder contains its own C# project. You can build or run a project with the standard .NET CLI:
 
-- dotnet build <project>.csproj
-- dotnet run --project <project>.csproj
-
-## Summary
-
-This repository shows the full evolution of a chess engine from a basic prototype to a more advanced, competitive-style engine with modern search and evaluation techniques.
+```bash
+dotnet build <project>.csproj -c Release
+dotnet run --project <project>.csproj -c Release
