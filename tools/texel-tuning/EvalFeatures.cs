@@ -6,12 +6,8 @@ public sealed class EvalFeatures
     public int RookCountBalance;
     public int QueenCountBalance;
 
-    // Fixed base score from material + PST only
-    public int FixedMg;
-    public int FixedEg;
     public int Phase;
 
-    // Scalar feature balances from White's perspective
     public int BishopPairBalance;
 
     public int KnightMobilityBalance;
@@ -29,5 +25,7 @@ public sealed class EvalFeatures
 
     public int KnightOutpostBalance;
 
-    public int[] PassedPawnBalance = new int[8]; // per rank
+    public int[] PassedPawnBalance = new int[8];
+
+    public int[,] PieceSqBalance = new int[6, 64];
 }

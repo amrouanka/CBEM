@@ -3,9 +3,6 @@ using System.Text;
 
 public sealed class EvalWeights
 {
-    public int FixedMgScale = 100;
-    public int FixedEgScale = 100;
-
     public int PawnMgAdjust = 0;
     public int PawnEgAdjust = 0;
     public int KnightMgAdjust = 0;
@@ -17,41 +14,39 @@ public sealed class EvalWeights
     public int QueenMgAdjust = 0;
     public int QueenEgAdjust = 0;
 
-    public int BishopPairMg = 30;
-    public int BishopPairEg = 50;
+    public int BishopPairMg = 15;
+    public int BishopPairEg = 39;
 
-    public int KnightMobMg = 4;
-    public int KnightMobEg = 4;
-    public int BishopMobMg = 5;
-    public int BishopMobEg = 5;
+    public int KnightMobMg = 1;
+    public int KnightMobEg = 0;
+    public int BishopMobMg = 3;
+    public int BishopMobEg = 1;
 
-    public int RookSemiOpenMg = 10;
-    public int RookSemiOpenEg = 8;
-    public int RookOpenMg = 20;
-    public int RookOpenEg = 12;
+    public int RookSemiOpenMg = 13;
+    public int RookSemiOpenEg = 7;
+    public int RookOpenMg = 45;
+    public int RookOpenEg = 2;
 
     public int[] PassedMg = [0, 15, 15, 17, 10, 6, 0, 0];
     public int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
-    // public int[] PassedMg = [0, 70, 40, 25, 15, 10, 10, 0];
-    // public int[] PassedEg = [0, 140, 90, 55, 35, 20, 15, 0];
 
-    public int IsolatedMg = -8;
-    public int IsolatedEg = -12;
+    public int[,] PstMgAdjust = new int[6, 64];
+    public int[,] PstEgAdjust = new int[6, 64];
 
-    public int KingOwnOpenMg = 25;
-    public int KingOwnSemiOpenMg = 10;
-    public int KingAdjacentOpenMg = 10;
-    public int KingAdjacentSemiOpenMg = 5;
+    public int IsolatedMg = -11;
+    public int IsolatedEg = -3;
 
-    public int KnightOutpostMg = 15;
+    public int KingOwnOpenMg = 54;
+    public int KingOwnSemiOpenMg = 14;
+    public int KingAdjacentOpenMg = 24;
+    public int KingAdjacentSemiOpenMg = 12;
+
+    public int KnightOutpostMg = 43;
 
     public EvalWeights Clone()
     {
         return new EvalWeights
         {
-            FixedMgScale = FixedMgScale,
-            FixedEgScale = FixedEgScale,
-
             PawnMgAdjust = PawnMgAdjust,
             PawnEgAdjust = PawnEgAdjust,
             KnightMgAdjust = KnightMgAdjust,
@@ -79,6 +74,9 @@ public sealed class EvalWeights
             PassedMg = (int[])PassedMg.Clone(),
             PassedEg = (int[])PassedEg.Clone(),
 
+            PstMgAdjust = (int[,])PstMgAdjust.Clone(),
+            PstEgAdjust = (int[,])PstEgAdjust.Clone(),
+
             IsolatedMg = IsolatedMg,
             IsolatedEg = IsolatedEg,
 
@@ -94,12 +92,14 @@ public sealed class EvalWeights
     public string ToCSharpConstants()
     {
         StringBuilder sb = new();
+        string[] pieceNames = ["Pawn", "Knight", "Bishop", "Rook", "Queen", "King"];
 
         int[] baseMg = [82, 337, 365, 477, 1025, 0];
         int[] baseEg = [94, 281, 297, 512, 936, 0];
         int[] adjMg = [PawnMgAdjust, KnightMgAdjust, BishopMgAdjust, RookMgAdjust, QueenMgAdjust, 0];
         int[] adjEg = [PawnEgAdjust, KnightEgAdjust, BishopEgAdjust, RookEgAdjust, QueenEgAdjust, 0];
 
+        // Material
         sb.Append("private static readonly int[] MgMaterial = [");
         for (int i = 0; i < 6; i++)
         {
@@ -115,8 +115,52 @@ public sealed class EvalWeights
             sb.Append(baseEg[i] + adjEg[i]);
         }
         sb.AppendLine("];");
-
         sb.AppendLine();
+
+        // MG PST
+        int[][] mgPst = Evaluation.GetMgPst();
+        int[][] egPst = Evaluation.GetEgPst();
+
+        sb.AppendLine("private static readonly int[][] MgPst =");
+        sb.AppendLine("[");
+        for (int piece = 0; piece < 6; piece++)
+        {
+            sb.AppendLine($"    // {pieceNames[piece]}");
+            sb.AppendLine("    [");
+            for (int sq = 0; sq < 64; sq++)
+            {
+                int adjusted = mgPst[piece][sq] + PstMgAdjust[piece, sq];
+                if (sq % 8 == 0) sb.Append("        ");
+                sb.Append($"{adjusted,4}");
+                if (sq < 63) sb.Append(",");
+                if (sq % 8 == 7) sb.AppendLine();
+            }
+            sb.AppendLine("    ],");
+        }
+        sb.AppendLine("];");
+        sb.AppendLine();
+
+        // EG PST
+        sb.AppendLine("private static readonly int[][] EgPst =");
+        sb.AppendLine("[");
+        for (int piece = 0; piece < 6; piece++)
+        {
+            sb.AppendLine($"    // {pieceNames[piece]}");
+            sb.AppendLine("    [");
+            for (int sq = 0; sq < 64; sq++)
+            {
+                int adjusted = egPst[piece][sq] + PstEgAdjust[piece, sq];
+                if (sq % 8 == 0) sb.Append("        ");
+                sb.Append($"{adjusted,4}");
+                if (sq < 63) sb.Append(",");
+                if (sq % 8 == 7) sb.AppendLine();
+            }
+            sb.AppendLine("    ],");
+        }
+        sb.AppendLine("];");
+        sb.AppendLine();
+
+        // Positional
         sb.AppendLine($"private const int BishopPairMg = {BishopPairMg};");
         sb.AppendLine($"private const int BishopPairEg = {BishopPairEg};");
         sb.AppendLine();
