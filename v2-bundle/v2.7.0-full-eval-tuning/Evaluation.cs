@@ -81,8 +81,8 @@ public static class Evaluation
     //   Chess rank:     8    7    6    5    4    3    2    1
     //   White pawn:   (impossible)  ←── advancing ──→  (start)
     //   Black mirror: mirroredRank = 7 - rank
-    private static readonly int[] PassedMg = [0, 0, 42, 14, 0, 11, 10, 0];
-    private static readonly int[] PassedEg = [0, 48, 67, 48, 25, 3, 0, 0];
+    private static readonly int[] PassedMg = [0, 0, 42, 14, 11, 11, 10, 0];
+    private static readonly int[] PassedEg = [0, 48, 67, 48, 22, 3, 0, 0];
 
     // Isolated pawn (no friendly pawn on adjacent files)
     private const int IsolatedMg = -19;

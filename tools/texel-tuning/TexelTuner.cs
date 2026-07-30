@@ -54,11 +54,11 @@ public static class TexelTuner
 
                     EvalWeights plus = weights.Clone();
                     p.Set(plus, plusValue);
-                    double plusLoss = Loss(samples, plus, k);
+                    double plusLoss = IsValidPassedShape(plus) ? Loss(samples, plus, k) : double.MaxValue;
 
                     EvalWeights minus = weights.Clone();
                     p.Set(minus, minusValue);
-                    double minusLoss = Loss(samples, minus, k);
+                    double minusLoss = IsValidPassedShape(minus) ? Loss(samples, minus, k) : double.MaxValue;
 
                     if (plusLoss < bestLoss && plusLoss <= minusLoss)
                     {
@@ -184,10 +184,37 @@ public static class TexelTuner
         return sum / samples.Count;
     }
 
+    private static bool IsValidPassedShape(EvalWeights w)
+    {
+        // Monotone non-increasing on indices 2..6
+        // Index 1 is exempt (7th-rank pawns are always passed by definition)
+        for (int i = 2; i < 6; i++)
+        {
+            if (w.PassedMg[i] < w.PassedMg[i + 1]) return false;
+            if (w.PassedEg[i] < w.PassedEg[i + 1]) return false;
+        }
+
+        return true;
+    }
+
     private static List<IntParameter> BuildParameterList()
     {
         List<IntParameter> parameters = new List<IntParameter>
         {
+            new() { Name = nameof(EvalWeights.PawnMgAdjust),   Get = w => w.PawnMgAdjust,   Set = (w, v) => w.PawnMgAdjust = v,   Min = -20, Max = 20 },
+            new() { Name = nameof(EvalWeights.PawnEgAdjust),   Get = w => w.PawnEgAdjust,   Set = (w, v) => w.PawnEgAdjust = v,   Min = -20, Max = 20 },
+
+            new() { Name = nameof(EvalWeights.KnightMgAdjust), Get = w => w.KnightMgAdjust, Set = (w, v) => w.KnightMgAdjust = v, Min = -40, Max = 40 },
+            new() { Name = nameof(EvalWeights.KnightEgAdjust), Get = w => w.KnightEgAdjust, Set = (w, v) => w.KnightEgAdjust = v, Min = -40, Max = 40 },
+
+            new() { Name = nameof(EvalWeights.BishopMgAdjust), Get = w => w.BishopMgAdjust, Set = (w, v) => w.BishopMgAdjust = v, Min = -40, Max = 40 },
+            new() { Name = nameof(EvalWeights.BishopEgAdjust), Get = w => w.BishopEgAdjust, Set = (w, v) => w.BishopEgAdjust = v, Min = -40, Max = 40 },
+
+            new() { Name = nameof(EvalWeights.RookMgAdjust),   Get = w => w.RookMgAdjust,   Set = (w, v) => w.RookMgAdjust = v,   Min = -60, Max = 60 },
+            new() { Name = nameof(EvalWeights.RookEgAdjust),   Get = w => w.RookEgAdjust,   Set = (w, v) => w.RookEgAdjust = v,   Min = -60, Max = 60 },
+
+            new() { Name = nameof(EvalWeights.QueenMgAdjust),  Get = w => w.QueenMgAdjust,  Set = (w, v) => w.QueenMgAdjust = v,  Min = -80, Max = 80 },
+            new() { Name = nameof(EvalWeights.QueenEgAdjust),  Get = w => w.QueenEgAdjust,  Set = (w, v) => w.QueenEgAdjust = v,  Min = -80, Max = 80 },
             // Positional
             new() { Name = nameof(EvalWeights.BishopPairMg), Get = w => w.BishopPairMg, Set = (w, v) => w.BishopPairMg = v, Min = 0, Max = 80 },
             new() { Name = nameof(EvalWeights.BishopPairEg), Get = w => w.BishopPairEg, Set = (w, v) => w.BishopPairEg = v, Min = 0, Max = 100 },
@@ -294,21 +321,26 @@ public static class TexelTuner
 
     private static List<IntParameter> BuildParameterList()
     {
-        List<IntParameter> parameters = new();
+        return new List<IntParameter>
+    {
+        new() { Name = "PassedMg[1]", Get = w => w.PassedMg[1], Set = (w, v) => w.PassedMg[1] = v, Min = 0, Max = 60 },
+        new() { Name = "PassedMg[2]", Get = w => w.PassedMg[2], Set = (w, v) => w.PassedMg[2] = v, Min = 0, Max = 90 },
+        new() { Name = "PassedMg[3]", Get = w => w.PassedMg[3], Set = (w, v) => w.PassedMg[3] = v, Min = 0, Max = 60 },
+        new() { Name = "PassedMg[4]", Get = w => w.PassedMg[4], Set = (w, v) => w.PassedMg[4] = v, Min = 0, Max = 40 },
+        new() { Name = "PassedMg[5]", Get = w => w.PassedMg[5], Set = (w, v) => w.PassedMg[5] = v, Min = 0, Max = 30 },
+        new() { Name = "PassedMg[6]", Get = w => w.PassedMg[6], Set = (w, v) => w.PassedMg[6] = v, Min = 0, Max = 25 },
 
-        // Ranks 1 to 6 (where 1 is closest to promotion in your inverted indexing)
-        for (int rank = 1; rank <= 6; rank++)
-        {
-            int r = rank; // Capture local variable for lambda
-            parameters.Add(new() { Name = $"PassedMg[Rank{r}]", Get = w => w.PassedMg[r], Set = (w, v) => w.PassedMg[r] = v, Min = 0, Max = 180 });
-            parameters.Add(new() { Name = $"PassedEg[Rank{r}]", Get = w => w.PassedEg[r], Set = (w, v) => w.PassedEg[r] = v, Min = 0, Max = 250 });
-        }
-
-        return parameters;
+        new() { Name = "PassedEg[1]", Get = w => w.PassedEg[1], Set = (w, v) => w.PassedEg[1] = v, Min = 0, Max = 130 },
+        new() { Name = "PassedEg[2]", Get = w => w.PassedEg[2], Set = (w, v) => w.PassedEg[2] = v, Min = 0, Max = 130 },
+        new() { Name = "PassedEg[3]", Get = w => w.PassedEg[3], Set = (w, v) => w.PassedEg[3] = v, Min = 0, Max = 90 },
+        new() { Name = "PassedEg[4]", Get = w => w.PassedEg[4], Set = (w, v) => w.PassedEg[4] = v, Min = 0, Max = 60 },
+        new() { Name = "PassedEg[5]", Get = w => w.PassedEg[5], Set = (w, v) => w.PassedEg[5] = v, Min = 0, Max = 40 },
+        new() { Name = "PassedEg[6]", Get = w => w.PassedEg[6], Set = (w, v) => w.PassedEg[6] = v, Min = 0, Max = 25 },
+    };
     }
 
 
-    Phase 3: Positional + Passed Pawns Together:
+    Phase 3: everything together:
 
     private static List<IntParameter> BuildParameterList()
     {

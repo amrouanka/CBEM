@@ -100,10 +100,10 @@ public static class Evaluation
     }
     public static int EvaluateWhitePerspective(EvalFeatures f, EvalWeights w)
     {
+        // BEFORE
         int mg = 0;
         int eg = 0;
 
-        // PST base score from MgTable/EgTable + tuned adjustments
         for (int piece = 0; piece < 6; piece++)
         {
             for (int sq = 0; sq < 64; sq++)
@@ -116,6 +116,12 @@ public static class Evaluation
                 }
             }
         }
+
+        // AFTER
+        //⚠️ Remember: when you go back to full PST tuning later,
+        // you must revert this and restore the loop, otherwise PstMgAdjust will be ignored.
+        // int mg = f.FixedMg;
+        // int eg = f.FixedEg;
 
         // Material adjustments
         mg += f.PawnCountBalance * w.PawnMgAdjust;
@@ -377,6 +383,20 @@ public static class Evaluation
             }
         }
 
+        // Precompute static PST contribution (valid only while PST tuning is disabled)
+        // for (int piece = 0; piece < 6; piece++)
+        // {
+        //     for (int sq = 0; sq < 64; sq++)
+        //     {
+        //         int bal = f.PieceSqBalance[piece, sq];
+        //         if (bal != 0)
+        //         {
+        //             f.FixedMg += bal * MgTable[piece, sq];
+        //             f.FixedEg += bal * EgTable[piece, sq];
+        //         }
+        //     }
+        // }
+
         return f;
     }
 
@@ -454,8 +474,8 @@ public static class Evaluation
     //   Chess rank:     8    7    6    5    4    3    2    1
     //   White pawn:   (impossible)  ←── advancing ──→  (start)
     //   Black mirror: mirroredRank = 7 - rank
-    private static readonly int[] PassedMg = [0, 0, 42, 14, 0, 11, 10, 0];
-    private static readonly int[] PassedEg = [0, 48, 67, 48, 25, 3, 0, 0];
+    private static readonly int[] PassedMg = [0, 0, 42, 14, 11, 11, 10, 0];
+    private static readonly int[] PassedEg = [0, 48, 67, 48, 22, 3, 0, 0];
 
     // Isolated pawn (no friendly pawn on adjacent files)
     private const int IsolatedMg = -19;

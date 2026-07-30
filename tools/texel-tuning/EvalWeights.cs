@@ -14,34 +14,34 @@ public sealed class EvalWeights
     public int QueenMgAdjust = 0;
     public int QueenEgAdjust = 0;
 
-    public int BishopPairMg = 15;
-    public int BishopPairEg = 39;
+    public int BishopPairMg = 25;
+    public int BishopPairEg = 49;
 
     public int KnightMobMg = 1;
     public int KnightMobEg = 0;
-    public int BishopMobMg = 3;
-    public int BishopMobEg = 1;
+    public int BishopMobMg = 4;
+    public int BishopMobEg = 4;
 
-    public int RookSemiOpenMg = 13;
-    public int RookSemiOpenEg = 7;
-    public int RookOpenMg = 45;
-    public int RookOpenEg = 2;
+    public int RookSemiOpenMg = 21;
+    public int RookSemiOpenEg = 15;
+    public int RookOpenMg = 54;
+    public int RookOpenEg = 8;
 
-    public int[] PassedMg = [0, 15, 15, 17, 10, 6, 0, 0];
-    public int[] PassedEg = [0, 97, 55, 36, 17, 12, 0, 0];
+    public int[] PassedMg = [0, 0, 42, 14, 11, 11, 10, 0];
+    public int[] PassedEg = [0, 48, 67, 48, 22, 3, 0, 0];
 
     public int[,] PstMgAdjust = new int[6, 64];
     public int[,] PstEgAdjust = new int[6, 64];
 
-    public int IsolatedMg = -11;
-    public int IsolatedEg = -3;
+    public int IsolatedMg = -19;
+    public int IsolatedEg = -8;
 
-    public int KingOwnOpenMg = 54;
-    public int KingOwnSemiOpenMg = 14;
-    public int KingAdjacentOpenMg = 24;
-    public int KingAdjacentSemiOpenMg = 12;
+    public int KingOwnOpenMg = 67;
+    public int KingOwnSemiOpenMg = 16;
+    public int KingAdjacentOpenMg = 33;
+    public int KingAdjacentSemiOpenMg = 13;
 
-    public int KnightOutpostMg = 43;
+    public int KnightOutpostMg = 46;
 
     public EvalWeights Clone()
     {
