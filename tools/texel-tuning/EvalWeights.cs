@@ -41,6 +41,8 @@ public sealed class EvalWeights
     public int KingAdjacentOpenMg = 33;
     public int KingAdjacentSemiOpenMg = 13;
 
+    public int QueenlessKingCenterMg = 0;
+
     public int KnightOutpostMg = 46;
 
     public EvalWeights Clone()
@@ -84,6 +86,8 @@ public sealed class EvalWeights
             KingOwnSemiOpenMg = KingOwnSemiOpenMg,
             KingAdjacentOpenMg = KingAdjacentOpenMg,
             KingAdjacentSemiOpenMg = KingAdjacentSemiOpenMg,
+
+            QueenlessKingCenterMg = QueenlessKingCenterMg,
 
             KnightOutpostMg = KnightOutpostMg
         };
@@ -182,6 +186,8 @@ public sealed class EvalWeights
         sb.AppendLine();
         sb.AppendLine($"private const int KingOwnOpenMg = {KingOwnOpenMg}, KingOwnSemiOpenMg = {KingOwnSemiOpenMg};");
         sb.AppendLine($"private const int KingAdjacentOpenMg = {KingAdjacentOpenMg}, KingAdjacentSemiOpenMg = {KingAdjacentSemiOpenMg};");
+        sb.AppendLine();
+        sb.AppendLine($"private const int QueenlessKingCenterMg = {QueenlessKingCenterMg};");
         sb.AppendLine();
         sb.AppendLine($"private const int KnightOutpostMg = {KnightOutpostMg};");
 

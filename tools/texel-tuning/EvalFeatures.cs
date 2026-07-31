@@ -26,6 +26,8 @@ public sealed class EvalFeatures
     public int KingAdjacentOpenBalance;
     public int KingAdjacentSemiOpenBalance;
 
+    public int QueenlessKingCenterBalance;
+
     public int KnightOutpostBalance;
 
     public int[] PassedPawnBalance = new int[8];
