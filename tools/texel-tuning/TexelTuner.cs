@@ -201,20 +201,16 @@ public static class TexelTuner
     {
         List<IntParameter> parameters = new List<IntParameter>
     {
-        // King safety
-        new() { Name = nameof(EvalWeights.KingOwnOpenMg),         Get = w => w.KingOwnOpenMg,         Set = (w, v) => w.KingOwnOpenMg = v,         Min = 0, Max = 120 },
-        new() { Name = nameof(EvalWeights.KingOwnSemiOpenMg),     Get = w => w.KingOwnSemiOpenMg,     Set = (w, v) => w.KingOwnSemiOpenMg = v,     Min = 0, Max = 60  },
-        new() { Name = nameof(EvalWeights.KingAdjacentOpenMg),    Get = w => w.KingAdjacentOpenMg,    Set = (w, v) => w.KingAdjacentOpenMg = v,    Min = 0, Max = 80  },
-        new() { Name = nameof(EvalWeights.KingAdjacentSemiOpenMg),Get = w => w.KingAdjacentSemiOpenMg,Set = (w, v) => w.KingAdjacentSemiOpenMg = v,Min = 0, Max = 50  },
+        new() { Name = nameof(EvalWeights.KingOwnOpenMg),          Get = w => w.KingOwnOpenMg,          Set = (w, v) => w.KingOwnOpenMg = v,          Min = 0, Max = 120 },
+        new() { Name = nameof(EvalWeights.KingOwnSemiOpenMg),      Get = w => w.KingOwnSemiOpenMg,      Set = (w, v) => w.KingOwnSemiOpenMg = v,      Min = 0, Max = 60 },
+        new() { Name = nameof(EvalWeights.KingAdjacentOpenMg),     Get = w => w.KingAdjacentOpenMg,     Set = (w, v) => w.KingAdjacentOpenMg = v,     Min = 0, Max = 80 },
+        new() { Name = nameof(EvalWeights.KingAdjacentSemiOpenMg), Get = w => w.KingAdjacentSemiOpenMg, Set = (w, v) => w.KingAdjacentSemiOpenMg = v, Min = 0, Max = 50 },
 
-        // New feature: queens-off king centralization
-        new() { Name = nameof(EvalWeights.QueenlessKingCenterMg), Get = w => w.QueenlessKingCenterMg, Set = (w, v) => w.QueenlessKingCenterMg = v, Min = 0, Max = 16 },
+        new() { Name = nameof(EvalWeights.QueenlessKingCenterMg),  Get = w => w.QueenlessKingCenterMg,  Set = (w, v) => w.QueenlessKingCenterMg = v,  Min = 0, Max = 48 },
     };
 
-        // King MG PST only
         const int KingPiece = 5;
-
-        for (int sq = 0; sq < 64; sq++)
+        for (int sq = 48; sq < 64; sq++)
         {
             int s = sq;
             parameters.Add(new IntParameter
@@ -230,149 +226,3 @@ public static class TexelTuner
         return parameters;
     }
 }
-
-/*
-    Phase 1: Positional Bonuses & Penalties Only:
-
-
-    private static List<IntParameter> BuildParameterList()
-    {
-        return new List<IntParameter>
-        {
-            // Bishop Pair
-            new() { Name = nameof(EvalWeights.BishopPairMg), Get = w => w.BishopPairMg, Set = (w, v) => w.BishopPairMg = v, Min = 0, Max = 80 },
-            new() { Name = nameof(EvalWeights.BishopPairEg), Get = w => w.BishopPairEg, Set = (w, v) => w.BishopPairEg = v, Min = 0, Max = 100 },
-
-            // Mobility
-            new() { Name = nameof(EvalWeights.KnightMobMg), Get = w => w.KnightMobMg, Set = (w, v) => w.KnightMobMg = v, Min = 0, Max = 15 },
-            new() { Name = nameof(EvalWeights.KnightMobEg), Get = w => w.KnightMobEg, Set = (w, v) => w.KnightMobEg = v, Min = 0, Max = 15 },
-            new() { Name = nameof(EvalWeights.BishopMobMg), Get = w => w.BishopMobMg, Set = (w, v) => w.BishopMobMg = v, Min = 0, Max = 15 },
-            new() { Name = nameof(EvalWeights.BishopMobEg), Get = w => w.BishopMobEg, Set = (w, v) => w.BishopMobEg = v, Min = 0, Max = 15 },
-
-            // Rook Files
-            new() { Name = nameof(EvalWeights.RookSemiOpenMg), Get = w => w.RookSemiOpenMg, Set = (w, v) => w.RookSemiOpenMg = v, Min = 0, Max = 50 },
-            new() { Name = nameof(EvalWeights.RookSemiOpenEg), Get = w => w.RookSemiOpenEg, Set = (w, v) => w.RookSemiOpenEg = v, Min = 0, Max = 40 },
-            new() { Name = nameof(EvalWeights.RookOpenMg),     Get = w => w.RookOpenMg,     Set = (w, v) => w.RookOpenMg = v,     Min = 0, Max = 90 },
-            new() { Name = nameof(EvalWeights.RookOpenEg),     Get = w => w.RookOpenEg,     Set = (w, v) => w.RookOpenEg = v,     Min = 0, Max = 60 },
-
-            // Pawn Structure
-            new() { Name = nameof(EvalWeights.IsolatedMg), Get = w => w.IsolatedMg, Set = (w, v) => w.IsolatedMg = v, Min = -40, Max = 0 },
-            new() { Name = nameof(EvalWeights.IsolatedEg), Get = w => w.IsolatedEg, Set = (w, v) => w.IsolatedEg = v, Min = -40, Max = 0 },
-
-            // King Safety (Penalties)
-            new() { Name = nameof(EvalWeights.KingOwnOpenMg),          Get = w => w.KingOwnOpenMg,          Set = (w, v) => w.KingOwnOpenMg = v,          Min = 0, Max = 120 },
-            new() { Name = nameof(EvalWeights.KingOwnSemiOpenMg),      Get = w => w.KingOwnSemiOpenMg,      Set = (w, v) => w.KingOwnSemiOpenMg = v,      Min = 0, Max = 60 },
-            new() { Name = nameof(EvalWeights.KingAdjacentOpenMg),     Get = w => w.KingAdjacentOpenMg,     Set = (w, v) => w.KingAdjacentOpenMg = v,     Min = 0, Max = 80 },
-            new() { Name = nameof(EvalWeights.KingAdjacentSemiOpenMg), Get = w => w.KingAdjacentSemiOpenMg, Set = (w, v) => w.KingAdjacentSemiOpenMg = v, Min = 0, Max = 50 },
-
-            // Minor Pieces
-            new() { Name = nameof(EvalWeights.KnightOutpostMg), Get = w => w.KnightOutpostMg, Set = (w, v) => w.KnightOutpostMg = v, Min = 0, Max = 80 },
-        };
-    }
-
-
-    Phase 2: Passed Pawns Only:
-
-    private static List<IntParameter> BuildParameterList()
-    {
-        return new List<IntParameter>
-    {
-        new() { Name = "PassedMg[1]", Get = w => w.PassedMg[1], Set = (w, v) => w.PassedMg[1] = v, Min = 0, Max = 60 },
-        new() { Name = "PassedMg[2]", Get = w => w.PassedMg[2], Set = (w, v) => w.PassedMg[2] = v, Min = 0, Max = 90 },
-        new() { Name = "PassedMg[3]", Get = w => w.PassedMg[3], Set = (w, v) => w.PassedMg[3] = v, Min = 0, Max = 60 },
-        new() { Name = "PassedMg[4]", Get = w => w.PassedMg[4], Set = (w, v) => w.PassedMg[4] = v, Min = 0, Max = 40 },
-        new() { Name = "PassedMg[5]", Get = w => w.PassedMg[5], Set = (w, v) => w.PassedMg[5] = v, Min = 0, Max = 30 },
-        new() { Name = "PassedMg[6]", Get = w => w.PassedMg[6], Set = (w, v) => w.PassedMg[6] = v, Min = 0, Max = 25 },
-
-        new() { Name = "PassedEg[1]", Get = w => w.PassedEg[1], Set = (w, v) => w.PassedEg[1] = v, Min = 0, Max = 130 },
-        new() { Name = "PassedEg[2]", Get = w => w.PassedEg[2], Set = (w, v) => w.PassedEg[2] = v, Min = 0, Max = 130 },
-        new() { Name = "PassedEg[3]", Get = w => w.PassedEg[3], Set = (w, v) => w.PassedEg[3] = v, Min = 0, Max = 90 },
-        new() { Name = "PassedEg[4]", Get = w => w.PassedEg[4], Set = (w, v) => w.PassedEg[4] = v, Min = 0, Max = 60 },
-        new() { Name = "PassedEg[5]", Get = w => w.PassedEg[5], Set = (w, v) => w.PassedEg[5] = v, Min = 0, Max = 40 },
-        new() { Name = "PassedEg[6]", Get = w => w.PassedEg[6], Set = (w, v) => w.PassedEg[6] = v, Min = 0, Max = 25 },
-    };
-    }
-
-
-    Phase 3: everything together:
-
-    private static List<IntParameter> BuildParameterList()
-    {
-        List<IntParameter> parameters = new List<IntParameter>
-        {
-            new() { Name = nameof(EvalWeights.PawnMgAdjust),   Get = w => w.PawnMgAdjust,   Set = (w, v) => w.PawnMgAdjust = v,   Min = -20, Max = 20 },
-            new() { Name = nameof(EvalWeights.PawnEgAdjust),   Get = w => w.PawnEgAdjust,   Set = (w, v) => w.PawnEgAdjust = v,   Min = -20, Max = 20 },
-
-            new() { Name = nameof(EvalWeights.KnightMgAdjust), Get = w => w.KnightMgAdjust, Set = (w, v) => w.KnightMgAdjust = v, Min = -40, Max = 40 },
-            new() { Name = nameof(EvalWeights.KnightEgAdjust), Get = w => w.KnightEgAdjust, Set = (w, v) => w.KnightEgAdjust = v, Min = -40, Max = 40 },
-
-            new() { Name = nameof(EvalWeights.BishopMgAdjust), Get = w => w.BishopMgAdjust, Set = (w, v) => w.BishopMgAdjust = v, Min = -40, Max = 40 },
-            new() { Name = nameof(EvalWeights.BishopEgAdjust), Get = w => w.BishopEgAdjust, Set = (w, v) => w.BishopEgAdjust = v, Min = -40, Max = 40 },
-
-            new() { Name = nameof(EvalWeights.RookMgAdjust),   Get = w => w.RookMgAdjust,   Set = (w, v) => w.RookMgAdjust = v,   Min = -60, Max = 60 },
-            new() { Name = nameof(EvalWeights.RookEgAdjust),   Get = w => w.RookEgAdjust,   Set = (w, v) => w.RookEgAdjust = v,   Min = -60, Max = 60 },
-
-            new() { Name = nameof(EvalWeights.QueenMgAdjust),  Get = w => w.QueenMgAdjust,  Set = (w, v) => w.QueenMgAdjust = v,  Min = -80, Max = 80 },
-            new() { Name = nameof(EvalWeights.QueenEgAdjust),  Get = w => w.QueenEgAdjust,  Set = (w, v) => w.QueenEgAdjust = v,  Min = -80, Max = 80 },
-            // Positional
-            new() { Name = nameof(EvalWeights.BishopPairMg), Get = w => w.BishopPairMg, Set = (w, v) => w.BishopPairMg = v, Min = 0, Max = 80 },
-            new() { Name = nameof(EvalWeights.BishopPairEg), Get = w => w.BishopPairEg, Set = (w, v) => w.BishopPairEg = v, Min = 0, Max = 100 },
-            new() { Name = nameof(EvalWeights.KnightMobMg), Get = w => w.KnightMobMg, Set = (w, v) => w.KnightMobMg = v, Min = 0, Max = 15 },
-            new() { Name = nameof(EvalWeights.KnightMobEg), Get = w => w.KnightMobEg, Set = (w, v) => w.KnightMobEg = v, Min = 0, Max = 15 },
-            new() { Name = nameof(EvalWeights.BishopMobMg), Get = w => w.BishopMobMg, Set = (w, v) => w.BishopMobMg = v, Min = 0, Max = 15 },
-            new() { Name = nameof(EvalWeights.BishopMobEg), Get = w => w.BishopMobEg, Set = (w, v) => w.BishopMobEg = v, Min = 0, Max = 15 },
-            new() { Name = nameof(EvalWeights.RookSemiOpenMg), Get = w => w.RookSemiOpenMg, Set = (w, v) => w.RookSemiOpenMg = v, Min = 0, Max = 50 },
-            new() { Name = nameof(EvalWeights.RookSemiOpenEg), Get = w => w.RookSemiOpenEg, Set = (w, v) => w.RookSemiOpenEg = v, Min = 0, Max = 40 },
-            new() { Name = nameof(EvalWeights.RookOpenMg), Get = w => w.RookOpenMg, Set = (w, v) => w.RookOpenMg = v, Min = 0, Max = 90 },
-            new() { Name = nameof(EvalWeights.RookOpenEg), Get = w => w.RookOpenEg, Set = (w, v) => w.RookOpenEg = v, Min = 0, Max = 60 },
-            new() { Name = nameof(EvalWeights.IsolatedMg), Get = w => w.IsolatedMg, Set = (w, v) => w.IsolatedMg = v, Min = -40, Max = 0 },
-            new() { Name = nameof(EvalWeights.IsolatedEg), Get = w => w.IsolatedEg, Set = (w, v) => w.IsolatedEg = v, Min = -40, Max = 0 },
-            new() { Name = nameof(EvalWeights.KingOwnOpenMg), Get = w => w.KingOwnOpenMg, Set = (w, v) => w.KingOwnOpenMg = v, Min = 0, Max = 120 },
-            new() { Name = nameof(EvalWeights.KingOwnSemiOpenMg), Get = w => w.KingOwnSemiOpenMg, Set = (w, v) => w.KingOwnSemiOpenMg = v, Min = 0, Max = 60 },
-            new() { Name = nameof(EvalWeights.KingAdjacentOpenMg), Get = w => w.KingAdjacentOpenMg, Set = (w, v) => w.KingAdjacentOpenMg = v, Min = 0, Max = 80 },
-            new() { Name = nameof(EvalWeights.KingAdjacentSemiOpenMg), Get = w => w.KingAdjacentSemiOpenMg, Set = (w, v) => w.KingAdjacentSemiOpenMg = v, Min = 0, Max = 50 },
-            new() { Name = nameof(EvalWeights.QueenlessKingCenterMg), Get = w => w.QueenlessKingCenterMg, Set = (w, v) => w.QueenlessKingCenterMg = v, Min = 0, Max = 16 },
-            new() { Name = nameof(EvalWeights.KnightOutpostMg), Get = w => w.KnightOutpostMg, Set = (w, v) => w.KnightOutpostMg = v, Min = 0, Max = 80 }
-        };
-
-        // Passed Pawns
-        for (int rank = 1; rank <= 6; rank++)
-        {
-            int r = rank;
-            parameters.Add(new() { Name = $"PassedMg[{r}]", Get = w => w.PassedMg[r], Set = (w, v) => w.PassedMg[r] = v, Min = 0, Max = 180 });
-            parameters.Add(new() { Name = $"PassedEg[{r}]", Get = w => w.PassedEg[r], Set = (w, v) => w.PassedEg[r] = v, Min = 0, Max = 250 });
-        }
-
-        // PST Adjustments per piece per square
-        string[] pieceNames = ["Pawn", "Knight", "Bishop", "Rook", "Queen", "King"];
-
-        for (int piece = 0; piece < 6; piece++)
-        {
-            int sqStart = (piece == 0) ? 8 : 0;
-            int sqEnd = (piece == 0) ? 56 : 64;
-
-            for (int sq = sqStart; sq < sqEnd; sq++)
-            {
-                int p = piece, s = sq;
-                parameters.Add(new()
-                {
-                    Name = $"{pieceNames[p]}MgPst[{s}]",
-                    Get = w => w.PstMgAdjust[p, s],
-                    Set = (w, v) => w.PstMgAdjust[p, s] = v,
-                    Min = -30,
-                    Max = 30
-                });
-                parameters.Add(new()
-                {
-                    Name = $"{pieceNames[p]}EgPst[{s}]",
-                    Get = w => w.PstEgAdjust[p, s],
-                    Set = (w, v) => w.PstEgAdjust[p, s] = v,
-                    Min = -30,
-                    Max = 30
-                });
-            }
-        }
-
-        return parameters;
-    }
-*/

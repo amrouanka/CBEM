@@ -1,7 +1,7 @@
 public sealed class EvalFeatures
 {
-    // public int FixedMg;
-    // public int FixedEg;
+    public int FixedMg;
+    public int FixedEg;
 
     public int PawnCountBalance;
     public int KnightCountBalance;

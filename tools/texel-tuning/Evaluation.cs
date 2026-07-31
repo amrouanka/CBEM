@@ -53,6 +53,9 @@ public static class Evaluation
     public static int[][] GetMgPst() => MgPst;
     public static int[][] GetEgPst() => EgPst;
 
+    public static int[] GetMgMaterial() => MgMaterial;
+    public static int[] GetEgMaterial() => EgMaterial;
+
     public static EvalWeights GetCurrentWeights()
     {
         return new EvalWeights
@@ -103,27 +106,27 @@ public static class Evaluation
     public static int EvaluateWhitePerspective(EvalFeatures f, EvalWeights w)
     {
         // BEFORE
-        int mg = 0;
-        int eg = 0;
+        // int mg = 0;
+        // int eg = 0;
 
-        for (int piece = 0; piece < 6; piece++)
-        {
-            for (int sq = 0; sq < 64; sq++)
-            {
-                int bal = f.PieceSqBalance[piece, sq];
-                if (bal != 0)
-                {
-                    mg += bal * (MgTable[piece, sq] + w.PstMgAdjust[piece, sq]);
-                    eg += bal * (EgTable[piece, sq] + w.PstEgAdjust[piece, sq]);
-                }
-            }
-        }
+        // for (int piece = 0; piece < 6; piece++)
+        // {
+        //     for (int sq = 0; sq < 64; sq++)
+        //     {
+        //         int bal = f.PieceSqBalance[piece, sq];
+        //         if (bal != 0)
+        //         {
+        //             mg += bal * (MgTable[piece, sq] + w.PstMgAdjust[piece, sq]);
+        //             eg += bal * (EgTable[piece, sq] + w.PstEgAdjust[piece, sq]);
+        //         }
+        //     }
+        // }
 
         // AFTER
         //⚠️ Remember: when you go back to full PST tuning later,
         // you must revert this and restore the loop, otherwise PstMgAdjust will be ignored.
-        // int mg = f.FixedMg;
-        // int eg = f.FixedEg;
+        int mg = f.FixedMg;
+        int eg = f.FixedEg;
 
         // Material adjustments
         mg += f.PawnCountBalance * w.PawnMgAdjust;
@@ -399,18 +402,18 @@ public static class Evaluation
         }
 
         // Precompute static PST contribution (valid only while PST tuning is disabled)
-        // for (int piece = 0; piece < 6; piece++)
-        // {
-        //     for (int sq = 0; sq < 64; sq++)
-        //     {
-        //         int bal = f.PieceSqBalance[piece, sq];
-        //         if (bal != 0)
-        //         {
-        //             f.FixedMg += bal * MgTable[piece, sq];
-        //             f.FixedEg += bal * EgTable[piece, sq];
-        //         }
-        //     }
-        // }
+        for (int piece = 0; piece < 6; piece++)
+        {
+            for (int sq = 0; sq < 64; sq++)
+            {
+                int bal = f.PieceSqBalance[piece, sq];
+                if (bal != 0)
+                {
+                    f.FixedMg += bal * MgTable[piece, sq];
+                    f.FixedEg += bal * EgTable[piece, sq];
+                }
+            }
+        }
 
         return f;
     }
@@ -505,10 +508,10 @@ public static class Evaluation
     //     Adjacent (d):    -24 (open)
     //     Adjacent (f):    -24 (open)
     //     Total:          -102
-    private const int KingOwnOpenMg = 67, KingOwnSemiOpenMg = 20;
-    private const int KingAdjacentOpenMg = 33, KingAdjacentSemiOpenMg = 13;
+    private const int KingOwnOpenMg = 71, KingOwnSemiOpenMg = 18;
+    private const int KingAdjacentOpenMg = 37, KingAdjacentSemiOpenMg = 13;
 
-    private const int QueenlessKingCenterMg = 0;
+    private const int QueenlessKingCenterMg = 20;
 
     // Knight outpost (middlegame only)
     //
@@ -590,14 +593,14 @@ public static class Evaluation
     ],
     // King
     [
-        -108,  83,  76,  44, -84, -54,  55,  21,
-          89,  58,  23,  53,  40,  45, -17, -89,
-          46,  77,  62,  43,  35,  64,  82, -17,
-           5,  -1,  35, -22,  -9, -12,  -9, -70,
-         -64,  28, -19, -53, -94, -44, -63, -92,
-         -18,  -8, -19, -56, -52, -46, -19, -43,
-          -3,   9, -16, -60, -47, -24,  13,  12,
-         -14,  36,  20, -54,   8, -36,  24,  16
+         -65,  23,  16, -15, -56, -34,   2,  13,
+          29,  -1, -20,  -7,  -8,  -4, -38, -29,
+          -9,  24,   2, -16, -20,   6,  22, -22,
+         -17, -20, -12, -27, -30, -25, -14, -36,
+         -49,  -1, -27, -39, -46, -44, -33, -51,
+         -14, -14, -22, -46, -44, -30, -15, -27,
+          27,  31,  -6, -44, -31, -10,  35,  38,
+          10,  66,  44, -30,  32, -13,  50,  42
     ],
 ];
 
@@ -677,18 +680,6 @@ public static class Evaluation
     //  Precomputed Lookup Tables
     // ================================================================
 
-    private static readonly int[] KingCenterTable =
-    [
-        0, 0, 1, 1, 1, 1, 0, 0,
-        0, 1, 2, 2, 2, 2, 1, 0,
-        1, 2, 3, 3, 3, 3, 2, 1,
-        1, 2, 3, 4, 4, 3, 2, 1,
-        1, 2, 3, 4, 4, 3, 2, 1,
-        1, 2, 3, 3, 3, 3, 2, 1,
-        0, 1, 2, 2, 2, 2, 1, 0,
-        0, 0, 1, 1, 1, 1, 0, 0
-    ];
-
     // Material + PST combined: MgTable[piece, square], EgTable[piece, square]
     //   White pieces 0..5, Black pieces 6..11
     internal static readonly int[,] MgTable = new int[12, 64];
@@ -706,6 +697,18 @@ public static class Evaluation
     private static readonly ulong[] BlackPassedMask = new ulong[64];
     private static readonly ulong[] WhiteOutpostMask = new ulong[64];
     private static readonly ulong[] BlackOutpostMask = new ulong[64];
+
+    private static readonly int[] KingCenterTable =
+    [
+        0, 0, 1, 1, 1, 1, 0, 0,
+        0, 1, 2, 2, 2, 2, 1, 0,
+        1, 2, 3, 3, 3, 3, 2, 1,
+        1, 2, 3, 4, 4, 3, 2, 1,
+        1, 2, 3, 4, 4, 3, 2, 1,
+        1, 2, 3, 3, 3, 3, 2, 1,
+        0, 1, 2, 2, 2, 2, 1, 0,
+        0, 0, 1, 1, 1, 1, 0, 0
+    ];
 
     // ================================================================
     //  Initialization
@@ -854,12 +857,13 @@ public static class Evaluation
 
         // ---- Positional features ----
         ScoreBishopPair(ref mg, ref eg);
-        ScorePassedPawns(ref mg, ref eg);   // kept, but NOT tuned
+        ScorePassedPawns(ref mg, ref eg);
         ScoreIsolatedPawns(ref mg, ref eg);
         ScoreMobility(ref mg, ref eg);
         ScoreRookFiles(ref mg, ref eg);
         ScoreKingExposure(ref mg);
         ScoreKnightOutposts(ref mg);
+        ScoreQueenlessKingCenter(ref mg);
 
         // ---- Taper and return ----
         int mgPhase = Math.Min(phase, TotalPhase);
@@ -1076,5 +1080,23 @@ public static class Evaluation
 
             BitboardOperations.PopBit(ref bb, sq);
         }
+    }
+
+    private static void ScoreQueenlessKingCenter(ref int mg)
+    {
+        // Only activates when BOTH queens are off the board.
+        // Uses MG score only — the EG king PST already handles king centralization
+        // in pure endgames. This targets the queenless middlegame gap.
+        if (bitboards[Q] != 0 || bitboards[q] != 0)
+            return;
+
+        int wkSq = BitboardOperations.GetLs1bIndex(bitboards[K]);
+        int bkSq = BitboardOperations.GetLs1bIndex(bitboards[k]);
+
+        // White king: reward centralization
+        mg += KingCenterTable[wkSq] * QueenlessKingCenterMg;
+
+        // Black king: reward centralization (subtract because positive = white better)
+        mg -= KingCenterTable[bkSq] * QueenlessKingCenterMg;
     }
 }

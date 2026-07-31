@@ -27,8 +27,8 @@ public sealed class EvalWeights
     public int RookOpenMg = 54;
     public int RookOpenEg = 8;
 
-    public int[] PassedMg = [0, 0, 42, 14, 11, 11, 10, 0];
-    public int[] PassedEg = [0, 48, 67, 48, 22, 3, 0, 0];
+    public int[] PassedMg = [0, 0, 34, 14, 11, 11, 10, 0];
+    public int[] PassedEg = [0, 48, 95, 52, 26, 7, 4, 0];
 
     public int[,] PstMgAdjust = new int[6, 64];
     public int[,] PstEgAdjust = new int[6, 64];
@@ -36,12 +36,12 @@ public sealed class EvalWeights
     public int IsolatedMg = -19;
     public int IsolatedEg = -8;
 
-    public int KingOwnOpenMg = 67;
-    public int KingOwnSemiOpenMg = 16;
-    public int KingAdjacentOpenMg = 33;
+    public int KingOwnOpenMg = 71;
+    public int KingOwnSemiOpenMg = 18;
+    public int KingAdjacentOpenMg = 37;
     public int KingAdjacentSemiOpenMg = 13;
 
-    public int QueenlessKingCenterMg = 0;
+    public int QueenlessKingCenterMg = 20;
 
     public int KnightOutpostMg = 46;
 
@@ -98,28 +98,10 @@ public sealed class EvalWeights
         StringBuilder sb = new();
         string[] pieceNames = ["Pawn", "Knight", "Bishop", "Rook", "Queen", "King"];
 
-        int[] baseMg = [82, 337, 365, 477, 1025, 0];
-        int[] baseEg = [94, 281, 297, 512, 936, 0];
+        int[] baseMg = Evaluation.GetMgMaterial();
+        int[] baseEg = Evaluation.GetEgMaterial();
         int[] adjMg = [PawnMgAdjust, KnightMgAdjust, BishopMgAdjust, RookMgAdjust, QueenMgAdjust, 0];
         int[] adjEg = [PawnEgAdjust, KnightEgAdjust, BishopEgAdjust, RookEgAdjust, QueenEgAdjust, 0];
-
-        // Material
-        sb.Append("private static readonly int[] MgMaterial = [");
-        for (int i = 0; i < 6; i++)
-        {
-            if (i > 0) sb.Append(", ");
-            sb.Append(baseMg[i] + adjMg[i]);
-        }
-        sb.AppendLine("];");
-
-        sb.Append("private static readonly int[] EgMaterial = [");
-        for (int i = 0; i < 6; i++)
-        {
-            if (i > 0) sb.Append(", ");
-            sb.Append(baseEg[i] + adjEg[i]);
-        }
-        sb.AppendLine("];");
-        sb.AppendLine();
 
         // MG PST
         int[][] mgPst = Evaluation.GetMgPst();
@@ -163,6 +145,25 @@ public sealed class EvalWeights
         }
         sb.AppendLine("];");
         sb.AppendLine();
+
+        // Material
+        sb.Append("private static readonly int[] MgMaterial = [");
+        for (int i = 0; i < 6; i++)
+        {
+            if (i > 0) sb.Append(", ");
+            sb.Append(baseMg[i] + adjMg[i]);
+        }
+        sb.AppendLine("];");
+
+        sb.Append("private static readonly int[] EgMaterial = [");
+        for (int i = 0; i < 6; i++)
+        {
+            if (i > 0) sb.Append(", ");
+            sb.Append(baseEg[i] + adjEg[i]);
+        }
+        sb.AppendLine("];");
+        sb.AppendLine();
+
 
         // Positional
         sb.AppendLine($"private const int BishopPairMg = {BishopPairMg};");
